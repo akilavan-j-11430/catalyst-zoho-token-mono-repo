@@ -1,0 +1,9 @@
+{
+  "command": "node index.js",
+  "build_path": "./",
+  "stack": "node24",
+  "catalyst_auth": true,
+  "login_redirect": "/",
+  "memory": 256,
+  "scripts": {}
+}

@@ -1,0 +1,26 @@
+# Node
+node_modules
+
+# Output
+out
+dist
+.next
+
+# Turbo
+.turbo
+
+# TypeScript
+*.tsbuildinfo
+
+# Catalyst
+.catalystrc
+appsails
+functions
+
+# Secrets
+.env
+
+# Misc
+.DS_Store
+*.txt
+*.log

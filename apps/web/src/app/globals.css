@@ -1,0 +1,228 @@
+@import "tailwindcss";
+
+/*
+ * shadcn ships `dark:` classes on its components. Tailwind's built-in `dark:`
+ * follows the OS, which would half-darken those components while these tokens
+ * stay light. Binding the variant to a `.dark` ancestor - which nothing sets -
+ * keeps the app light, the way `color-scheme` below declares it.
+ */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  color-scheme: light;
+
+  --radius: 0.625rem;
+
+  --background: #f6f7f9;
+  --foreground: #18181b;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --primary: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #52525b;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --destructive: #b91c1c;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #1d4ed8;
+
+  /* No shadcn equivalent: the toasts and the sign-up confirmation use these. */
+  --success: #15803d;
+  --success-wash: #f0fdf4;
+  --destructive-wash: #fef2f2;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-wash: var(--success-wash);
+  --color-destructive-wash: var(--destructive-wash);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* One floor for both auth cards so the shell does not resize between sign-in
+     and sign-up. Set by the taller natural content - the sign-up form - and the
+     sign-in widget stretches to fill whatever is left. */
+  --spacing-auth-card: 34rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  /*
+   * The generated template set this to Arial, which outranks the Geist variables
+   * and forced every wrapper to re-apply `font-sans` as a repair.
+   */
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+/*
+ * Sonner. The whole look lives here rather than in the component, because sonner styles
+ * its own internals through selectors Tailwind utilities cannot outrank - `background`
+ * is set as a shorthand on `[data-sonner-toast][data-styled='true']`, which wipes out any
+ * `background-image` a utility class adds, and `[data-icon]` is three attributes deep.
+ * Everything below is one attribute wider than the rule it replaces, so it wins on
+ * specificity rather than on the order of sonner's runtime `<style>`.
+ *
+ * The position: sonner anchors a top-center stack to the top of the viewport, and a
+ * toast here is the app's answer to what you just did, so it belongs in the middle of
+ * the page where you are already looking.
+ */
+[data-sonner-toaster][data-y-position="top"][data-x-position="center"] {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+@media (max-width: 600px) {
+  /* Sonner goes full width and drops the horizontal shift, so only the vertical stays. */
+  [data-sonner-toaster][data-y-position="top"][data-x-position="center"] {
+    transform: translateY(-50%);
+  }
+}
+
+[data-sonner-toast][data-styled="true"] {
+  position: relative;
+  overflow: hidden;
+  justify-content: center;
+}
+
+/* Sonner lets the content span the toast. At 75vw that strands a sentence against the
+   left edge of a very wide panel, so the group is centred and the line length capped. */
+[data-sonner-toast][data-styled="true"][data-type] [data-content] {
+  flex: 0 1 auto;
+  max-width: 46rem;
+}
+
+/* The accent rail. It is what makes the toast read as a verdict rather than a card. */
+[data-sonner-toast][data-styled="true"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 0.375rem;
+}
+
+[data-sonner-toast][data-styled="true"] [data-icon] {
+  height: 2.75rem;
+  width: 2.75rem;
+  justify-content: center;
+  border-radius: calc(infinity * 1px);
+  margin-inline-end: 0.125rem;
+}
+
+[data-sonner-toast][data-styled="true"] [data-icon] svg {
+  height: 1.375rem;
+  width: 1.375rem;
+  margin: 0;
+}
+
+[data-sonner-toast][data-styled="true"] [data-close-button] {
+  background: transparent;
+  border-color: transparent;
+  color: currentColor;
+  opacity: 0.55;
+}
+
+[data-sonner-toast][data-styled="true"][data-type="success"] {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--success) 12%, var(--success-wash)),
+    var(--success-wash) 55%,
+    color-mix(in oklab, var(--success) 9%, var(--success-wash))
+  );
+  color: var(--success);
+  border: 1px solid color-mix(in oklab, var(--success) 22%, transparent);
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, #fff 60%, transparent) inset,
+    0 30px 70px -30px color-mix(in oklab, var(--success) 70%, transparent);
+}
+
+[data-sonner-toast][data-styled="true"][data-type="success"]::before {
+  background: linear-gradient(
+    to bottom,
+    var(--success),
+    color-mix(in oklab, var(--success) 35%, transparent)
+  );
+}
+
+[data-sonner-toast][data-styled="true"][data-type="success"] [data-icon] {
+  background: var(--success);
+  color: #fff;
+  box-shadow:
+    0 0 0 0.5rem color-mix(in oklab, var(--success) 10%, transparent),
+    0 8px 20px -6px color-mix(in oklab, var(--success) 60%, transparent);
+}
+
+[data-sonner-toast][data-styled="true"][data-type="error"] {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--destructive) 12%, var(--destructive-wash)),
+    var(--destructive-wash) 55%,
+    color-mix(in oklab, var(--destructive) 9%, var(--destructive-wash))
+  );
+  color: var(--destructive);
+  border: 1px solid color-mix(in oklab, var(--destructive) 22%, transparent);
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, #fff 60%, transparent) inset,
+    0 30px 70px -30px color-mix(in oklab, var(--destructive) 70%, transparent);
+}
+
+[data-sonner-toast][data-styled="true"][data-type="error"]::before {
+  background: linear-gradient(
+    to bottom,
+    var(--destructive),
+    color-mix(in oklab, var(--destructive) 35%, transparent)
+  );
+}
+
+[data-sonner-toast][data-styled="true"][data-type="error"] [data-icon] {
+  background: var(--destructive);
+  color: #fff;
+  box-shadow:
+    0 0 0 0.5rem color-mix(in oklab, var(--destructive) 10%, transparent),
+    0 8px 20px -6px color-mix(in oklab, var(--destructive) 60%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

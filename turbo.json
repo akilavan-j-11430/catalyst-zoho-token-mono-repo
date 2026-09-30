@@ -1,0 +1,41 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": [
+    "APP_ACCESS_KEY",
+    "CATALYST_SUB_PROCESS",
+    "CATALYST_PORTAL_DOMAIN",
+    "X_ZOHO_CATALYST_IS_LOCAL",
+    "X_ZOHO_CATALYST_CONSOLE_URL",
+    "X_ZOHO_CATALYST_ACCOUNTS_URL",
+    "X_ZOHO_STRATUS_RESOURCE_SUFFIX"
+  ],
+  "tasks": {
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "lint": {
+      "cache": true
+    },
+    "typecheck": {
+      "cache": true
+    },
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist",
+        ".next"
+      ]
+    },
+    "bundle": {
+      "dependsOn": [
+        "build"
+      ]
+    }
+  }
+}

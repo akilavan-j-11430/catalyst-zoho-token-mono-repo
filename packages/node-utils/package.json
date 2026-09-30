@@ -1,0 +1,33 @@
+{
+  "name": "@repo/node-utils",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "private": true,
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "dev": "tsc --build && concurrently -n tsc,alias \"tsc --build --watch --preserveWatchOutput\" \"tsc-alias --watch\"",
+    "build": "tsc --build && tsc-alias",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint"
+  },
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.13.6",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.5"
+  },
+  "dependencies": {
+    "@repo/types": "workspace:*"
+  }
+}

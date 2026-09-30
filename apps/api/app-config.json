@@ -1,0 +1,7 @@
+{
+	"command": "node index.js",
+	"build_path": "./",
+	"stack": "node24",
+	"memory": 256,
+	"scripts": {}
+}

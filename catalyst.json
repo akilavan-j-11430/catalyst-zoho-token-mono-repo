@@ -1,0 +1,18 @@
+{
+  "appsail": [
+    {
+      "source": "appsails/proxy",
+      "name": "proxy"
+    },
+    {
+      "source": "appsails/api",
+      "name": "api"
+    }
+  ],
+  "slate": [
+    {
+      "name": "web",
+      "source": "apps/web"
+    }
+  ]
+}

@@ -10,6 +10,16 @@ type ApiEnv = {
   AUTH_REDIRECT_URL: string;
   /** Timezone for log timestamps. Falls back to the logger's own default. */
   TZ: string;
+  /** Zoho OAuth client id, from a Server-based client at api-console.zoho.com. */
+  ZOHO_CLIENT_ID: string;
+  /** Its secret. Lives in .env and in the Catalyst Console, never in a committed file. */
+  ZOHO_CLIENT_SECRET: string;
+  /** Comma-separated scopes the consent screen asks for. */
+  ZOHO_SCOPES: string;
+  /** The accounts server for the DC, scheme and all - https://accounts.zoho.in */
+  ZOHO_ACCOUNTS_URL: string;
+  /** Where Zoho returns the grant code. Must equal the Authorized Redirect URI on the client. */
+  ZOHO_REDIRECT_URI: string;
 };
 
 export const env = defineEnv<ApiEnv>();

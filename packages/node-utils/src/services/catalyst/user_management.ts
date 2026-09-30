@@ -23,6 +23,9 @@ function toRegisteredUser(details: RegisteredUserDetails): RegisteredUser {
   };
 }
 
+/** Where the caller is memoized for the rest of the request, alongside `req.startTime`. */
+const CALLER_KEY = "catalyst.currentUser";
+
 /** Catalyst app users. Like `Zcql`, this names no resource, so it has no handle. */
 export class UserManagement {
   /** Registers an app user. Catalyst emails them a link to confirm and set a
@@ -50,5 +53,30 @@ export class UserManagement {
         cause,
       );
     }
+  }
+
+  /** The signed-in caller. The app follows the caller's credentials - see
+   *  `initExecutionContext` - so this identifies whoever made the request.
+   *
+   *  Memoized on the execution context, because several handlers ask who is calling
+   *  within one request and the answer cannot change midway. The context is built per
+   *  request, so one caller's identity is never visible to another. */
+  static async currentUser(): Promise<RegisteredUser> {
+    const execution = currentContext().manager;
+    const known = execution.getExtras<RegisteredUser>(CALLER_KEY);
+    if (known !== undefined) {
+      return known;
+    }
+    const caller = await fetchCurrentUser();
+    execution.setExtras(CALLER_KEY, caller);
+    return caller;
+  }
+}
+
+async function fetchCurrentUser(): Promise<RegisteredUser> {
+  try {
+    return toRegisteredUser(await userManagement().getCurrentUser());
+  } catch (cause) {
+    throw CatalystError.InvalidResource("Failed to read the current user", cause);
   }
 }

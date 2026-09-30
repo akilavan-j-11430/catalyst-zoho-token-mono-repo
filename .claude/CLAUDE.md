@@ -1,6 +1,6 @@
 # catalyst-zoho-token-mono-repo
 
-Starter kit for Zoho Catalyst customer solutions. pnpm workspaces + Turborepo.
+The basic Catalyst monorepo plus a Zoho OAuth connection. pnpm workspaces + Turborepo.
 Clone, run `catalyst init` to bind it to your own Catalyst project, then build.
 
 Setup and troubleshooting are in `README.md` and not repeated here. This file covers
@@ -17,10 +17,16 @@ load the relevant skill (`catalyst-datastore`, `catalyst-authentication`,
 `catalyst-appsail`, `catalyst-slate`, `catalyst-basics`) or check the docs before
 asserting it.
 
-This is a starter kit, so most tasks mean adding the *first* thing of its kind -
-the first table, the first domain route, the first shared model. Extend the shape
-that is already here instead of introducing a second one; "Adding to the repo"
-below is the checklist for each kind.
+The repo carries exactly one feature: a Zoho OAuth connection, obtained once per
+signed-in Catalyst user and never re-obtained. `/api/zoho-token/{connect,callback,
+status}` in `apps/api`, the refresh token in the `ZohoConnection` table, the access
+token minted on demand and held in an in-memory LRU over Catalyst Cache. The
+services are `packages/node-utils/src/services/zoho/`.
+
+Everything else is still bare plumbing, so most other tasks mean adding the *first*
+thing of their kind - the first bucket, the first job, the first shared model. Extend
+the shape that is already here instead of introducing a second one; "Adding to the
+repo" below is the checklist for each kind.
 
 Where new work goes:
 
@@ -41,9 +47,10 @@ Bring these back to the user rather than deciding alone:
 
 - Anything that changes the deploy surface: a new AppSail, a new Catalyst service,
   a new runtime dependency.
-- Product and business rules. This repo has no domain model. If a task needs an
-  entity, a field, or a status value that is not specified, ask - a wrong schema is
-  expensive to unwind once routes and UI depend on it.
+- Product and business rules. `ZohoConnection` is the only entity this repo models,
+  and it holds a reference id and a refresh token. If a task needs another entity, a
+  field, or a status value that is not specified, ask - a wrong schema is expensive to
+  unwind once routes and UI depend on it.
 
 ## Architecture
 
@@ -215,9 +222,9 @@ In `apps/api`:
 
 ## Adding to the repo
 
-**An API route** - follow `src/routes/ping.ts`: export a `Router`, use the response
-builders, then mount it in `src/index.ts` **above** the catch-all 404, which otherwise
-swallows it.
+**An API route** - follow `src/routes/ping.ts`: export a `Router` with the explicit
+`: Router` annotation, use the response builders, then add it to `src/routes/api_router.ts`.
+That file is the only place a router mounts, so `src/index.ts` never changes.
 
 **An AppSail app** - copy `apps/api` as the shape. Four things must agree:
 `scripts/bundle.mjs` (output `appsails/<name>/`), `app-config.json`, the `catalyst.json`

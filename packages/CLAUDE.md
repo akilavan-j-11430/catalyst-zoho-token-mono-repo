@@ -19,7 +19,7 @@ path under `src/`:
 import type { RecordResponse } from "@repo/types/api";              // src/api.ts
 import { logger } from "@repo/node-utils/framework/logger";         // src/framework/logger.ts
 import { currentContext } from "@repo/node-utils/framework/async_context";
-import { todoTable } from "@repo/node-utils/services/catalyst/resources"; // src/services/catalyst/resources.ts
+import { zohoConnectionTable } from "@repo/node-utils/services/catalyst/resources";
 import { defineEnv } from "@repo/node-utils/utils/env";               // src/utils/env.ts
 ```
 

@@ -1,9 +1,9 @@
 # catalyst-zoho-token-mono-repo
 
 A monorepo starter kit for building customer solutions on
-[Zoho Catalyst](https://catalyst.zoho.com). Clone it, point it at your own Catalyst
-project with `catalyst init`, and you have a running full-stack application in a few
-minutes.
+[Zoho Catalyst](https://catalyst.zoho.com), carrying a working Zoho OAuth connection.
+Clone it, point it at your own Catalyst project with `catalyst init`, and you have a
+running full-stack application in a few minutes.
 
 **What you get out of the box**
 
@@ -17,9 +17,14 @@ minutes.
 - A **Turborepo pipeline** so builds are cached and ordered correctly, plus one-command
   bundle and deploy.
 
-It is deliberately small. There is no database layer, no auth UI, and no example CRUD
-resource - just the plumbing that every Catalyst solution ends up needing, done once
-and done consistently.
+- A **Zoho OAuth connection** at `/api/zoho-token/*`: the authorization-code redirect
+  flow with CSRF state, the refresh token stored in a Data Store table this repo owns,
+  and the access token minted on demand behind an in-memory LRU over Catalyst Cache.
+  Credentials live in `.env`, never in a committed Catalyst file.
+
+It is deliberately small. Beyond the Zoho connection there is no domain layer, no auth
+UI, and no example CRUD resource - just the plumbing that every Catalyst solution ends
+up needing, done once and done consistently.
 
 ---
 

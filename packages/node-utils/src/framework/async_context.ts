@@ -4,9 +4,9 @@ import { RuntimeError } from "@/errors/runtime_error";
 
 /** Per-request values carried on the execution context. */
 export interface ExecutionInfo {
+  /** Catalyst app built from the request credentials. */
   catalyst: unknown;
   executionId: string;
-  /** Catalyst app built from the request credentials. */
   /** Any other values that need to be carried through the request. */
   extras: Record<string, unknown>;
 }

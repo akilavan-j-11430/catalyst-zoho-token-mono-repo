@@ -107,7 +107,10 @@ or omitting one from a typed job, is a compile error.
 `Zcql` is the exception and has no handle. A query joins across tables and belongs to no
 single one, so it is static and called directly - `Zcql.executeQuery("SELECT ...")`.
 
-This is a starter kit, so it ships no resources. `resources.ts` arrives with the first one.
+`resources.ts` exists and declares two: `zohoConnectionTable` for the `ZohoConnection` table
+and `zohoConnectionCache` for the project's default cache segment. Note the segment carries two
+kinds of entry - minted access tokens and OAuth state - told apart by a key prefix rather than
+by a second handle, because they are one Catalyst resource.
 
 ## A handle is hoisted, a client is not
 

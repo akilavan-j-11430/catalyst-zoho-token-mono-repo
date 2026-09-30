@@ -13,6 +13,7 @@ type ApiEnv = {
   AUTH_REDIRECT_URL: string;
   /** Timezone for log timestamps. */
   TZ: string;
+  // ... and one entry per Zoho OAuth key; see the real file for the full list.
 };
 
 export const env = defineEnv<ApiEnv>();

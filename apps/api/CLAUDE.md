@@ -29,12 +29,12 @@ From `src/index.ts`, and the order is load-bearing:
 
 1. `express.json()`
 2. `/api` -> `initExecutionContext`, then `recordRequestTiming`
-3. `/api` -> routers (`pingRouter`, ...)
+3. `/api` -> `apiRouter` (`src/routes/api_router.ts`), which holds every route
 4. `/` -> JSON 404 catch-all
 5. `errorHandler` (terminal)
 
-New routers mount at step 3. Below the catch-all they are unreachable - every request
-404s instead.
+`index.ts` mounts one router, and `api_router.ts` composes the rest, so a new route
+cannot land below the catch-all and quietly 404. Add it there, not here.
 
 ## Execution context
 
@@ -102,7 +102,9 @@ pingRouter.get("/ping", (_req, res) => {
 });
 ```
 
-Mount it in `src/index.ts` with `app.use("/api", pingRouter)`, above the catch-all.
+Then add one line to `src/routes/api_router.ts` - `apiRouter.use(pingRouter)`. The `: Router`
+annotation is not optional: the declaration emit cannot infer the type across the package
+boundary without it.
 
 ## Errors and responses
 

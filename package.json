@@ -29,16 +29,5 @@
   },
   "devDependencies": {
     "@types/node": "^24.13.6"
-  },
-  "overrides": {
-    "@zcatalyst/utils": "file:/Users/akilavan-11430/zc-packs/zcatalyst-utils-1.0.0.tgz",
-    "@zcatalyst/auth-admin": "file:/Users/akilavan-11430/zc-packs/zcatalyst-auth-admin-1.0.0.tgz",
-    "@zcatalyst/auth-client": "file:/Users/akilavan-11430/zc-packs/zcatalyst-auth-client-1.0.0.tgz",
-    "@zcatalyst/transport": "file:/Users/akilavan-11430/zc-packs/zcatalyst-transport-1.0.0.tgz",
-    "@zcatalyst/auth": "file:/Users/akilavan-11430/zc-packs/zcatalyst-auth-1.0.0.tgz",
-    "@zcatalyst/cache": "file:/Users/akilavan-11430/zc-packs/zcatalyst-cache-1.0.0.tgz",
-    "@zcatalyst/datastore": "file:/Users/akilavan-11430/zc-packs/zcatalyst-datastore-1.0.0.tgz",
-    "@zcatalyst/job-scheduling": "file:/Users/akilavan-11430/zc-packs/zcatalyst-job-scheduling-1.0.0.tgz",
-    "@zcatalyst/stratus": "file:/Users/akilavan-11430/zc-packs/zcatalyst-stratus-1.0.0.tgz"
   }
 }

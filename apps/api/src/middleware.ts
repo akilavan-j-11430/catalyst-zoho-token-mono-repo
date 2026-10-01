@@ -40,47 +40,39 @@ export function recordRequestTiming(
   next();
 }
 
-/** Builds an app for every scope the request's headers allow. A scope that fails - User,
- *  when the request carries no signed-in user - is left unset, and only fails the request
- *  if something asks for it. */
-async function initCatalystScopes(req: Request, catalyst: Catalyst): Promise<void> {
-  await Promise.all(
-    Object.values(CatalystScope).map(async (scope) => {
-      try {
-        catalyst.setApp(
-          scope,
-          await zcAuth.init(req as unknown as Parameters<typeof zcAuth.init>[0], {
-            scope,
-          }),
-        );
-      } catch (cause) {
-        logger.info(`No ${scope}-scope Catalyst app: ${String(cause)}`);
-      }
-    }),
-  );
-}
-
 /** Establishes the execution context for the request and runs the chain inside it. */
 export const initExecutionContext: RequestHandler = (req, _res, next) => {
   // Catalyst reads both the project details and the caller's credentials off the headers,
   // so the apps are per-request and nothing needs to be configured in the environment.
-  // `init` loads its implementation through a dynamic import, so it must be awaited - an
-  // unawaited promise is truthy and only fails later, inside the SDK.
+  // A scope that fails - User, when the request carries no signed-in user - is left unset
+  // and only fails the request if something asks for it. `init` loads its implementation
+  // through a dynamic import, so it must be awaited.
   const catalyst = new Catalyst();
-  const context = new ExecutionContext({
-    executionId: randomUUID(),
-    catalyst,
-    extras: {},
-  });
+  const context = new ExecutionContext({ executionId: randomUUID(), catalyst, extras: {} });
   return runWithContext(context, async () => {
-    await initCatalystScopes(req, catalyst);
+    await Promise.all(
+      Object.values(CatalystScope).map(async (scope) => {
+        try {
+          catalyst.setApp(
+            scope,
+            await zcAuth.init(req as unknown as Parameters<typeof zcAuth.init>[0], { scope }),
+          );
+        } catch (cause) {
+          logger.info(`No ${scope}-scope Catalyst app: ${String(cause)}`);
+        }
+      }),
+    );
     next();
   });
 };
 
 /** Rejects a request whose credentials do not resolve to a Catalyst app user. The user is
  *  memoized on the context, so handlers asking again later cost no second lookup. */
-export const requireSignedInUser: RequestHandler = async (_req, _res, next) => {
+export const validateUserAuthentication: RequestHandler = async (
+  _req,
+  _res,
+  next,
+) => {
   try {
     await UserManagement.currentUser();
   } catch (error) {

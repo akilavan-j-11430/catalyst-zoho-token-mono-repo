@@ -28,14 +28,20 @@ nothing you should call.
 From `src/index.ts`, and the order is load-bearing:
 
 1. `express.json()`
-2. `/api` -> `initExecutionContext`, then `recordRequestTiming`, then
-   `requireSignedInUser` (401 unless the credentials resolve to an app user)
-3. `/api` -> `apiRouter` (`src/routes/api-router.ts`), which holds every route
+2. `/api` -> `initExecutionContext`, then `recordRequestTiming`
+3. `/api/v1` -> `apiRouter` (`src/routes/api-router.ts`), which holds every route
 4. `/` -> JSON 404 catch-all
 5. `errorHandler` (terminal)
 
 `index.ts` mounts one router, and `api-router.ts` composes the rest, so a new route
 cannot land below the catch-all and quietly 404. Add it there, not here.
+
+Every path segment is a constant in `ApiPath` (`@repo/routing/api-path`), shared with
+`apps/web`; a full path is `join(...)` of them (`@repo/routing/path`). `api-router.ts`
+mounts each router under its own segment - `apiRouter.use(ApiPath.ZohoToken,
+zohoTokenRouter)` - and the router names only what follows it, `ApiPath.Callback`. So a
+router-level `use`, like the `validateUserAuthentication` on `zohoTokenRouter`, covers
+that router's routes and nothing else.
 
 ## Execution context
 
@@ -57,7 +63,7 @@ Three things about that call are easy to get wrong:
 - **A failed scope does not fail the request.** A request with neither a user token nor a
   cookie cannot build the User app (`missing user credentials`). That scope is left unset
   and logged, and `getApp(CatalystScope.User)` throws `CatalystError` (`SCOPE_UNAVAILABLE`)
-  only if something asks for it. `requireSignedInUser` turns that into a 401.
+  only if something asks for it. `validateUserAuthentication` turns that into a 401.
 
 This is why requests must arrive through `catalyst serve` - only the CLI injects those
 headers. Bypass it and every scope's `zcAuth.init` fails with `app/invalid_project_details`
@@ -96,16 +102,19 @@ reach `errorHandler` as a 500. `.claude/rules/catalyst-sdk.md` is the full rule.
 
 ```ts
 import { Router } from "express";
+import { ApiPath } from "@repo/routing/api-path";
 import { toRecordResponse } from "@/utils/api";
 
 export const pingRouter: Router = Router();
 
-pingRouter.get("/ping", (_req, res) => {
+pingRouter.get(ApiPath.Ping, (_req, res) => {
   res.json(toRecordResponse({ message: "pong" }));
 });
 ```
 
-Then add one line to `src/routes/api-router.ts` - `apiRouter.use(pingRouter)`. The `: Router`
+Add any new segment to `ApiPath` first, never as a string literal. Then add one line to
+`src/routes/api-router.ts` - `apiRouter.use(ApiPath.Auth, authRouter)` for a router with a
+prefix; `ping` is a single route, so it mounts bare and names `ApiPath.Ping` itself. The `: Router`
 annotation is not optional: the declaration emit cannot infer the type across the package
 boundary without it.
 

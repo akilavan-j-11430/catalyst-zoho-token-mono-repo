@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/routing": "workspace:*",
     "@repo/types": "workspace:*",
     "@tanstack/react-query": "^5.103.2",
     "@zcatalyst/auth": "^1.0.0",

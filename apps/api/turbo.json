@@ -6,11 +6,12 @@
       "passThroughEnv": [
         "AUTH_REDIRECT_URL",
         "TZ",
-        "ZOHO_CLIENT_ID",
-        "ZOHO_CLIENT_SECRET",
-        "ZOHO_SCOPES",
-        "ZOHO_ACCOUNTS_URL",
-        "WEB_ORIGIN"
+        "ZOHO_TOKEN_CLIENT_ID",
+        "ZOHO_TOKEN_CLIENT_SECRET",
+        "ZOHO_TOKEN_SCOPES",
+        "ZOHO_TOKEN_ACCOUNTS_URL",
+        "ZOHO_TOKEN_CALLBACK_ORIGIN",
+        "WEB_APP_ORIGIN"
       ]
     }
   }

@@ -18,7 +18,7 @@ load the relevant skill (`catalyst-datastore`, `catalyst-authentication`,
 asserting it.
 
 The repo carries exactly one feature: a Zoho OAuth connection, obtained once per
-signed-in Catalyst user and never re-obtained. `/api/zoho-token/{connect,callback,
+signed-in Catalyst user and never re-obtained. `/api/v1/zoho-token/{connect,callback,
 status}` in `apps/api`, the refresh token in the `ZohoConnection` table, the access
 token minted on demand and held in an in-memory LRU over Catalyst Cache. The
 services are `packages/node-utils/src/services/zoho/`.
@@ -34,6 +34,9 @@ Where new work goes:
 - Pages, components, styling -> `apps/web` (Slate).
 - Shapes both sides use -> `packages/types`, defined once and imported by both;
   never two definitions that can drift.
+- Route path segments -> `packages/routing`: `ApiPath` in `api-path.ts`, combined with
+  `join` from `path.ts`. `apps/api` mounts them and `apps/web` calls them, so a path
+  is never a string literal in either app. Client paths belong here too, in their own file.
 - Server-side helpers -> `packages/node-utils`. It imports `node:async_hooks`, so
   it is `apps/api` only - never reach it from `apps/web`.
 - Never `apps/proxy`. It is local-only plumbing and ships nothing; a feature added
@@ -75,6 +78,7 @@ catalyst serve      <- entry point, port assigned by the CLI (3000, 3001, 3002, 
 | `apps/api` | `api` | AppSail `api` |
 | `apps/web` | `web` | Slate `web` |
 | `packages/types` | `@repo/types` | - |
+| `packages/routing` | `@repo/routing` | - |
 | `packages/node-utils` | `@repo/node-utils` | - |
 | `packages/typescript-config` | `@repo/typescript-config` | - |
 | `packages/eslint-config` | `@repo/eslint-config` | - |
@@ -158,7 +162,7 @@ Add a file there rather than growing this one, and give it `paths:` frontmatter 
 applies to part of the tree.
 
 - `@/*` resolves to `./src/*` in every workspace. Use it instead of `../../`.
-- Shared packages expose subpaths, not a barrel: `@repo/types/api`,
+- Shared packages expose subpaths, not a barrel: `@repo/types/api`, `@repo/routing/api-path`,
   `@repo/node-utils/framework/logger`, `@repo/node-utils/framework/async-context`,
   `@repo/node-utils/services/catalyst/resources`, `@repo/node-utils/utils/env`.
 - File names are kebab-case: `http-error.ts`, `async-context.ts`.
@@ -223,7 +227,8 @@ In `apps/api`:
 ## Adding to the repo
 
 **An API route** - follow `src/routes/ping.ts`: export a `Router` with the explicit
-`: Router` annotation, use the response builders, then add it to `src/routes/api-router.ts`.
+`: Router` annotation, use the response builders, add its segments to `ApiPath`
+(`packages/routing`), then mount it in `src/routes/api-router.ts` under its own segment.
 That file is the only place a router mounts, so `src/index.ts` never changes.
 
 **An AppSail app** - copy `apps/api` as the shape. Four things must agree:

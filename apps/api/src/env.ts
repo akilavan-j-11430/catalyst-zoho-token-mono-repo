@@ -11,16 +11,19 @@ type ApiEnv = {
   /** Timezone for log timestamps. Falls back to the logger's own default. */
   TZ: string;
   /** Zoho OAuth client id, from a Server-based client at api-console.zoho.com. */
-  ZOHO_CLIENT_ID: string;
+  ZOHO_TOKEN_CLIENT_ID: string;
   /** Its secret. Lives in .env and in the Catalyst Console, never in a committed file. */
-  ZOHO_CLIENT_SECRET: string;
+  ZOHO_TOKEN_CLIENT_SECRET: string;
   /** Comma-separated scopes the consent screen asks for. */
-  ZOHO_SCOPES: string;
+  ZOHO_TOKEN_SCOPES: string;
   /** The accounts server for the DC, scheme and all - https://accounts.zoho.in */
-  ZOHO_ACCOUNTS_URL: string;
-  /** The domain the browser reaches the app on, no scheme - localhost:3001. Optional:
-   *  when unset, `getDomain` takes it from the request. */
-  WEB_ORIGIN: string;
+  ZOHO_TOKEN_ACCOUNTS_URL: string;
+  /** The origin the Zoho callback is built on, scheme and all - http://localhost:3001.
+   *  Plus /api/v1/zoho-token/callback, it must equal the client's Authorized Redirect URI. */
+  ZOHO_TOKEN_CALLBACK_ORIGIN: string;
+  /** The web app's origin, scheme and all - http://localhost:3001. The browser is sent
+   *  back to its home page once the Zoho connection exists. */
+  WEB_APP_ORIGIN: string;
 };
 
 export const env = defineEnv<ApiEnv>();

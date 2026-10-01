@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { type Request, Router } from "express";
 import {
   ZohoAuthError,
   ZohoAuthErrorCode,
@@ -6,7 +6,7 @@ import {
 import { ZohoConnection } from "@repo/node-utils/services/zoho/connection";
 import { env } from "@/env";
 import { HttpError } from "@/errors/http-error";
-import { toRecordResponse } from "@/utils/api";
+import { getOrigin, toRecordResponse } from "@/utils/api";
 
 /** Failures the user fixes by starting consent again. Every other `ZohoAuthError` -
  *  `invalid_client`, the accounts server unreachable - is ours and stays a 500. */
@@ -32,8 +32,8 @@ function requiredQuery(value: unknown, name: string): string {
 
 /** Zoho matches it exactly against the client's Authorized Redirect URI, so it is sent
  *  identically on consent and on the code exchange. */
-function callbackUri(): string {
-  return new URL("/api/zoho-token/callback", env.get("APP_ORIGIN")).toString();
+function callbackUri(req: Request): string {
+  return new URL("/api/zoho-token/callback", getOrigin(req)).toString();
 }
 
 /** Where the browser lands once the connection exists. */
@@ -41,19 +41,19 @@ const APP_HOME = "/";
 
 export const zohoTokenRouter: Router = Router();
 
-zohoTokenRouter.get("/zoho-token/connect", async (_req, res) => {
+zohoTokenRouter.get("/zoho-token/connect", async (req, res) => {
   if (await ZohoConnection.isConnected()) {
     res.redirect(APP_HOME);
     return;
   }
-  res.redirect(await ZohoConnection.consentUrl(zohoScopes(), callbackUri()));
+  res.redirect(await ZohoConnection.consentUrl(zohoScopes(), callbackUri(req)));
 });
 
 zohoTokenRouter.get("/zoho-token/callback", async (req, res) => {
   const code = requiredQuery(req.query["code"], "code");
   const state = requiredQuery(req.query["state"], "state");
   try {
-    await ZohoConnection.persistToken(code, state, callbackUri());
+    await ZohoConnection.persistToken(code, state, callbackUri(req));
   } catch (error) {
     if (error instanceof ZohoAuthError && RESTART_CONSENT.has(error.code)) {
       throw HttpError.BadRequest(

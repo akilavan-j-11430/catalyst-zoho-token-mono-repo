@@ -18,8 +18,9 @@ type ApiEnv = {
   ZOHO_SCOPES: string;
   /** The accounts server for the DC, scheme and all - https://accounts.zoho.in */
   ZOHO_ACCOUNTS_URL: string;
-  /** The origin `catalyst serve` or the deployed domain serves - http://localhost:3001 */
-  APP_ORIGIN: string;
+  /** The domain the browser reaches the app on, no scheme - localhost:3001. Optional:
+   *  when unset, `getDomain` takes it from the request. */
+  WEB_ORIGIN: string;
 };
 
 export const env = defineEnv<ApiEnv>();

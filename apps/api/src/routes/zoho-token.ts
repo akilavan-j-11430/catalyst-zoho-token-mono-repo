@@ -42,7 +42,7 @@ const APP_HOME = "/";
 export const zohoTokenRouter: Router = Router();
 
 zohoTokenRouter.get("/zoho-token/connect", async (_req, res) => {
-  if (await ZohoConnection.hasToken()) {
+  if (await ZohoConnection.isConnected()) {
     res.redirect(APP_HOME);
     return;
   }
@@ -66,5 +66,7 @@ zohoTokenRouter.get("/zoho-token/callback", async (req, res) => {
 });
 
 zohoTokenRouter.get("/zoho-token/status", async (_req, res) => {
-  res.json(toRecordResponse({ connected: await ZohoConnection.hasToken() }));
+  res.json(
+    toRecordResponse({ connected: await ZohoConnection.isConnected() }),
+  );
 });

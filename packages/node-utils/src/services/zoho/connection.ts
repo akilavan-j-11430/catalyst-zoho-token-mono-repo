@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ZohoAuthError, ZohoAuthErrorCode } from "@/errors/zoho-auth-error";
+import { CatalystScope } from "@/enums/catalyst-scope";
 import { currentContext } from "@/framework/async-context";
 import {
   zohoConnectionCache,
@@ -217,7 +218,7 @@ export class ZohoConnection {
     const grant = await accountsRequests.run(() =>
       ZohoAccounts.exchangeCode(credentials, code, redirectUri),
     );
-    await zohoConnectionTable.insertRow({
+    await zohoConnectionTable.runIn(CatalystScope.User).insertRow({
       REFERENCE_ID: referenceId,
       REFRESH_TOKEN: grant.refreshToken,
     });
@@ -260,7 +261,7 @@ export class ZohoConnection {
    *  usable here: it takes a ROWID and reports every failure as a missing row, so a
    *  datastore outage would read as "not connected" and mint a second grant. */
   private static async hasStoredGrant(referenceId: string): Promise<boolean> {
-    const rows = await Zcql.executeQuery(
+    const rows = await Zcql.runIn(CatalystScope.User).executeQuery(
       `SELECT ROWID FROM ${TABLE} WHERE REFERENCE_ID = '${referenceId}' LIMIT 1`,
     );
     return rows.length > 0;
@@ -269,7 +270,7 @@ export class ZohoConnection {
   private static async storedRefreshToken(
     referenceId: string,
   ): Promise<string> {
-    const rows = await Zcql.executeQuery(
+    const rows = await Zcql.runIn(CatalystScope.User).executeQuery(
       `SELECT REFRESH_TOKEN FROM ${TABLE} WHERE REFERENCE_ID = '${referenceId}' LIMIT 1`,
     );
     const refreshToken = rows[0]?.["REFRESH_TOKEN"];

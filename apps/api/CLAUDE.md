@@ -28,7 +28,8 @@ nothing you should call.
 From `src/index.ts`, and the order is load-bearing:
 
 1. `express.json()`
-2. `/api` -> `initExecutionContext`, then `recordRequestTiming`
+2. `/api` -> `initExecutionContext`, then `recordRequestTiming`, then
+   `requireSignedInUser` (401 unless the credentials resolve to an app user)
 3. `/api` -> `apiRouter` (`src/routes/api-router.ts`), which holds every route
 4. `/` -> JSON 404 catch-all
 5. `errorHandler` (terminal)
@@ -38,44 +39,46 @@ cannot land below the catch-all and quietly 404. Add it there, not here.
 
 ## Execution context
 
-`initExecutionContext` (`src/middleware.ts`) awaits `zcAuth.init(req)` from
-`@zcatalyst/auth` and runs the rest of the chain inside `runWithContext`. Catalyst reads the
-project details and the caller's credentials off the request headers, so the app is
-per-request and nothing needs configuring in the environment.
+`initExecutionContext` (`src/middleware.ts`) calls `zcAuth.init(req, { scope })` from
+`@zcatalyst/auth` once per `CatalystScope` and runs the rest of the chain inside
+`runWithContext`. Catalyst reads the project details and the caller's credentials off the
+request headers, so the apps are per-request and nothing needs configuring in the
+environment.
 
-Two things about that call are easy to get wrong:
+Three things about that call are easy to get wrong:
 
 - **It is async.** The node facade loads its implementation through a dynamic import, so
   `init` returns a promise. Unawaited, that promise is truthy, reaches the SDK intact and
   only fails later as `app.credential.getToken is not a function`.
-- **No scope is passed, and that is deliberate.** The app follows whatever the caller
-  presents, so a handler acts as the signed-in user and `getCurrentUser()` identifies them.
-  Pass `{ scope: "admin" }` and it acts as the application instead: `getCurrentUser()` can no
-  longer say who is calling, and App User table permissions stop applying to anything this
-  API does.
-
-  The price is that a request carrying neither a user token nor a cookie is rejected here
-  with `missing user credentials`, before any route runs. `POST /api/auth/register` is
-  therefore reachable only by someone already signed in - it registers a second user, not the
-  first. A route that needs to serve anonymous callers cannot sit behind this middleware.
+- **User and Admin are different apps.** A user-scope app acts as the signed-in caller, so
+  `getCurrentUser()` identifies them and App User table permissions apply. An admin-scope
+  app acts as the application. The wrapper picks which one it reads with
+  `manager.catalyst.getApp(scope)`.
+- **A failed scope does not fail the request.** A request with neither a user token nor a
+  cookie cannot build the User app (`missing user credentials`). That scope is left unset
+  and logged, and `getApp(CatalystScope.User)` throws `CatalystError` (`SCOPE_UNAVAILABLE`)
+  only if something asks for it. `requireSignedInUser` turns that into a 401.
 
 This is why requests must arrive through `catalyst serve` - only the CLI injects those
-headers. Bypass it and `zcAuth.init` throws `app/invalid_project_details`, which
-`errorHandler` renders as a generic 500. If every `/api` route is 500ing in dev, that is
+headers. Bypass it and every scope's `zcAuth.init` fails with `app/invalid_project_details`
+(logged by `initExecutionContext`), so the first Catalyst call throws `SCOPE_UNAVAILABLE`,
+which `errorHandler` renders as a generic 500. If every `/api` route is 500ing in dev, that is
 the cause, not your handler.
 
 Handlers must **not** initialize Catalyst themselves, and must not reach for the app at
-all. Import a resource handle - it reads the app off the context for you:
+all. Import a resource handle and pick the scope with `runIn` - it reads that scope's app
+off the context for you:
 
 ```ts
+import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
 import { todoTable } from "@repo/node-utils/services/catalyst/resources";
 
-const todo = await todoTable.getRow(rowId);
+const todo = await todoTable.runIn(CatalystScope.User).getRow(rowId);
 ```
 
 Handles are declared once in `packages/node-utils/src/services/catalyst/resources.ts`,
 never in a route. `Zcql` is the exception: a query belongs to no single table, so it is
-static - `Zcql.executeQuery("SELECT ...")`.
+static - `Zcql.runIn(CatalystScope.User).executeQuery("SELECT ...")`.
 
 If a handle cannot do what the route needs, **add the method to the wrapper** rather than
 reaching for the SDK here. A single-use method is still the right shape.

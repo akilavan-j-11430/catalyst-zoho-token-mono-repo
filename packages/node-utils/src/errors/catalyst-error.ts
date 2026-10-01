@@ -24,6 +24,14 @@ export class CatalystError extends RuntimeError {
     return new CatalystError(ErrorCode.RESOURCE_NOT_FOUND, message, cause);
   }
 
+  /** The request has no Catalyst app for the scope, usually because it carries no user. */
+  static ScopeUnavailable(scope: string): CatalystError {
+    return new CatalystError(
+      ErrorCode.SCOPE_UNAVAILABLE,
+      `No ${scope}-scope Catalyst app for this request`,
+    );
+  }
+
   override toString(): string {
     const lines = [`${this.name}[${this.code}]: ${this.message}`];
     if (this.cause !== undefined) {

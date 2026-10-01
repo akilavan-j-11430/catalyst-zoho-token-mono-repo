@@ -1,6 +1,7 @@
 import { UserManagement as UserManagementClient } from "@zcatalyst/auth";
 import type { NewUser, RegisteredUser } from "@repo/types/user";
 import { CatalystError } from "@/errors/catalyst-error";
+import { CatalystScope } from "@/enums/catalyst-scope";
 import { currentContext } from "@/framework/async-context";
 
 type RegisteredUserDetails = Awaited<
@@ -9,8 +10,10 @@ type RegisteredUserDetails = Awaited<
 
 /** Fresh per call. The app is per-request and carries the caller's credentials,
  *  so a service must never be hoisted to module scope. */
-function userManagement(): UserManagementClient {
-  return new UserManagementClient(currentContext().manager.catalyst);
+function userManagement(scope: CatalystScope): UserManagementClient {
+  return new UserManagementClient(
+    currentContext().manager.catalyst.getApp(scope),
+  );
 }
 
 function toRegisteredUser(details: RegisteredUserDetails): RegisteredUser {
@@ -35,7 +38,7 @@ export class UserManagement {
     redirectUrl: string,
   ): Promise<RegisteredUser> {
     try {
-      const registered = await userManagement().registerUser(
+      const registered = await userManagement(CatalystScope.Admin).registerUser(
         {
           platform_type: "web",
           redirect_url: redirectUrl,
@@ -75,8 +78,13 @@ export class UserManagement {
 
 async function fetchCurrentUser(): Promise<RegisteredUser> {
   try {
-    return toRegisteredUser(await userManagement().getCurrentUser());
+    return toRegisteredUser(
+      await userManagement(CatalystScope.User).getCurrentUser(),
+    );
   } catch (cause) {
-    throw CatalystError.InvalidResource("Failed to read the current user", cause);
+    throw CatalystError.InvalidResource(
+      "Failed to read the current user",
+      cause,
+    );
   }
 }

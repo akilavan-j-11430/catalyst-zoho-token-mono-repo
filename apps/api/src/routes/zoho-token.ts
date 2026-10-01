@@ -7,6 +7,7 @@ import { ZohoConnection } from "@repo/node-utils/services/zoho/connection";
 import { env } from "@/env";
 import { HttpError } from "@/errors/http-error";
 import { getOrigin, toRecordResponse } from "@/utils/api";
+import { requireSignedInUser } from "@/middleware";
 
 /** Failures the user fixes by starting consent again. Every other `ZohoAuthError` -
  *  `invalid_client`, the accounts server unreachable - is ours and stays a 500. */
@@ -40,6 +41,7 @@ function callbackUri(req: Request): string {
 const APP_HOME = "/";
 
 export const zohoTokenRouter: Router = Router();
+zohoTokenRouter.use(requireSignedInUser)
 
 zohoTokenRouter.get("/zoho-token/connect", async (req, res) => {
   if (await ZohoConnection.isConnected()) {

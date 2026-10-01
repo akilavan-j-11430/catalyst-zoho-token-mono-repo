@@ -1,8 +1,7 @@
 # Catalyst SDK access
 
 Every Catalyst SDK call goes through `packages/node-utils/src/services/catalyst/`. No
-`@zcatalyst/*` package may be imported anywhere else. ESLint enforces it; the only other
-exemption is `framework/async-context.ts`, which carries the app's type across the request.
+`@zcatalyst/*` package may be imported anywhere else, and ESLint enforces it.
 
 One file per component - `bucket.ts`, `table.ts`, `zcql.ts`, `cache.ts`, `job.ts` - plus
 `resources.ts`, which names the resources. Each component builds the SDK client
@@ -12,10 +11,11 @@ app nowhere else:
 ```ts
 // packages/node-utils/src/services/catalyst/bucket.ts
 import { Stratus } from "@zcatalyst/stratus";
+import type { CatalystScope } from "@/enums/catalyst-scope";
 import { currentContext } from "@/framework/async-context";
 
-function stratus(): Stratus {
-  return new Stratus(currentContext().manager.catalyst);
+function stratus(scope: CatalystScope): Stratus {
+  return new Stratus(currentContext().manager.catalyst.getApp(scope));
 }
 ```
 
@@ -51,9 +51,10 @@ is the only seam. Import the handle wherever it is needed, and never declare a s
 for a resource that already has one:
 
 ```ts
+import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
 import { todoTable } from "@repo/node-utils/services/catalyst/resources";
 
-const todo = await todoTable.getRow(rowId);
+const todo = await todoTable.runIn(CatalystScope.User).getRow(rowId);
 ```
 
 It lives here rather than in an app because `apps/api` is one AppSail among however many a
@@ -105,7 +106,8 @@ The generic decides which, so the two cannot be confused: passing a payload to a
 or omitting one from a typed job, is a compile error.
 
 `Zcql` is the exception and has no handle. A query joins across tables and belongs to no
-single one, so it is static and called directly - `Zcql.executeQuery("SELECT ...")`.
+single one, so it is static and starts from `runIn` -
+`Zcql.runIn(CatalystScope.User).executeQuery("SELECT ...")`.
 
 `resources.ts` exists and declares two: `zohoConnectionTable` for the `ZohoConnection` table
 and `zohoConnectionCache` for the project's default cache segment. Note the segment carries two
@@ -127,6 +129,37 @@ another user's data.
 That is why every accessor is a function and every method calls it again, and it is what
 makes the handle safe to hoist. Nothing structural enforces it - the accessors live in five
 files - so check it when reviewing a wrapper.
+
+## One app per scope
+
+User scope covers only the methods the browser SDK exposes
+(https://docs.catalyst.zoho.com/en/sdk/javascript/v1/webpack-bundler/#browser-supported-javascript-methods);
+everything else needs Admin. So the context carries a `Catalyst` (`catalyst.ts`) holding one
+app per `CatalystScope`, and `initExecutionContext` builds every scope from the request's
+headers. A scope that cannot be built - User, when the request carries no signed-in user -
+is left unset, and `getApp(scope)` throws `CatalystError` with `SCOPE_UNAVAILABLE` only when
+something asks for it.
+
+Use User unless the method is missing from the browser list. Cache is admin-only.
+
+**Table, Bucket and Zcql take the scope at the call site, never in `resources.ts`.** A handle
+holds a name and exposes only `runIn(scope)`, which returns the scoped operations
+(`ScopedTable`, `ScopedBucket`, `ScopedZcql`). Skipping it is a compile error, not a
+default, so every call names whose credentials it uses:
+
+```ts
+await zohoConnectionTable.runIn(CatalystScope.User).insertRow(row);
+await Zcql.runIn(CatalystScope.Admin).executeQuery("SELECT ...");
+```
+
+`runIn` returns a new object and never mutates the handle. The handle is a module-level
+singleton shared by every request, so a scope stored on it would leak across concurrent
+requests. A method that makes no Catalyst call - `Bucket.buildKey` - stays on the handle.
+The scoped classes are exported as types only, so `runIn` is the only way to build one.
+
+**Never construct an SDK client without an app.** `new CacheClient()` does not fail: the SDK
+falls back to a module-level default holding whichever request called `zcAuth.init` last,
+and switches that request's credential to admin while it is still in flight.
 
 ## Writing a wrapper
 
@@ -155,13 +188,13 @@ each arrived because something needed it. Add the next one the same way, followi
 rules above, and call it from the route:
 
 ```ts
-// packages/node-utils/src/services/catalyst/bucket.ts
+// packages/node-utils/src/services/catalyst/bucket.ts - on ScopedBucket
 async copyObject(sourceKey: string, targetKey: string): Promise<void> {
   ...
 }
 
 // apps/api/src/routes/invoice.ts
-await invoiceBucket.copyObject(draftKey, finalKey);
+await invoiceBucket.runIn(CatalystScope.User).copyObject(draftKey, finalKey);
 ```
 
 A method that turns out to be single-use is still the right shape. It costs one small

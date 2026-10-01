@@ -40,8 +40,7 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 - **Keep them framework-free.** Both an Express app and a Next.js app import these.
   No `express`, no `react`, no Next.js imports.
 - **`node-utils/src/services/catalyst/` is the only directory that may import a Catalyst
-  SDK.** ESLint enforces it; `framework/async-context.ts` is the one other exemption, and
-  only to carry the app's type. See `.claude/rules/catalyst-sdk.md`.
+  SDK.** ESLint enforces it. See `.claude/rules/catalyst-sdk.md`.
 - **Catalyst resources are declared once, in `services/catalyst/resources.ts`** - one
   `export const` per table, bucket, cache segment and job, built with the wrapper's
   `create` factory. Apps import the handle; they never construct a wrapper themselves.

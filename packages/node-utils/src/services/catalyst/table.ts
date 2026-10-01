@@ -1,24 +1,28 @@
 import { ErrorCode } from "@/enums/error-codes";
 import { CatalystError } from "@/errors/catalyst-error";
 import { Datastore } from "@zcatalyst/datastore";
+import type { CatalystScope } from "@/enums/catalyst-scope";
 import { currentContext } from "@/framework/async-context";
 
 type CatalystTable = ReturnType<Datastore["table"]>;
 
 /** Fresh per call. The app is per-request and carries the caller's credentials,
  *  so a service must never be hoisted to module scope. */
-function datastore(): Datastore {
-  return new Datastore(currentContext().manager.catalyst);
+function datastore(scope: CatalystScope): Datastore {
+  return new Datastore(currentContext().manager.catalyst.getApp(scope));
 }
 
 export type TableRow = Record<string, unknown>;
 
-/** A Catalyst Data Store table. */
-export class Table {
-  private constructor(private readonly name: string) {}
+/** A Data Store table bound to a scope. Reached only through `Table.runIn`. */
+class ScopedTable {
+  constructor(
+    private readonly name: string,
+    private readonly scope: CatalystScope,
+  ) {}
 
   private table(): CatalystTable {
-    return datastore().table(this.name);
+    return datastore(this.scope).table(this.name);
   }
 
   private async run<T>(operation: string, call: () => Promise<T>): Promise<T> {
@@ -91,6 +95,18 @@ export class Table {
   /** Deletes multiple rows by ROWID. */
   async deleteRows(rowIds: string[]): Promise<void> {
     await this.run("deleteRows", () => this.table().deleteRows(rowIds));
+  }
+}
+
+export type { ScopedTable };
+
+/** A Catalyst Data Store table. Holds the name only; every operation goes through `runIn`. */
+export class Table {
+  private constructor(private readonly name: string) {}
+
+  /** The table's operations, acting with the scope's credentials. */
+  runIn(scope: CatalystScope): ScopedTable {
+    return new ScopedTable(this.name, scope);
   }
 
   /** Creates a handle to a named table. */

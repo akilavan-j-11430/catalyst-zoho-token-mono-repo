@@ -43,7 +43,8 @@ Not `apps/*/app-config.json`, not `catalyst.json`, not
 
 `app-config.json` is committed, so a value written there is a value committed to the
 repository. `.env` is gitignored and is the only place a value lives; `.env.example` is
-committed and carries the key with a comment and no value.
+committed and carries the key with a comment and no value. The root pair holds what every
+app shares; an app's own keys go in `apps/<app>/.env` and `apps/<app>/.env.example`.
 
 This costs something at deploy time and the cost is worth knowing. For an app linked in
 `catalyst.json`, `env_variables` in `app-config.json` is what the AppSail runtime applies
@@ -81,8 +82,8 @@ Four steps, in order:
    is for.
 2. The key in the `dev` task's `passThroughEnv` in `apps/<app>/turbo.json`, so a value set
    in the shell survives turbo's strict env mode.
-3. An entry in `.env.example` - committed, commented, no value.
-4. The local value in `.env` - gitignored.
+3. An entry in `apps/<app>/.env.example` - committed, commented, no value.
+4. The local value in `apps/<app>/.env` - gitignored.
 
 Then set it in the Catalyst Console before the next deploy that needs it.
 

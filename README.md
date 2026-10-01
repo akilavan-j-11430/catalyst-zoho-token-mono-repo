@@ -117,10 +117,12 @@ this repo deploys (two AppSails and one Slate app) and is the same for everybody
 
 ```bash
 cp .env.example .env
+cp apps/api/.env.example apps/api/.env
 ```
 
-The root `.env` is shared by every app. App-specific values go in `apps/<app>/.env`.
-Both are gitignored; the `.env.example` files are committed.
+The root `.env` is shared by every app. App-specific values go in `apps/<app>/.env`,
+each with its own `apps/<app>/.env.example`. The `.env` files are gitignored; the
+`.env.example` files are committed.
 
 Platform values, read by the Catalyst CLI and SDK rather than by this repo's code:
 
@@ -419,9 +421,9 @@ apps that still have a bundle script. Delete the directory and re-run `pnpm bund
 this clone, so there is no `.catalystrc`. It is gitignored by design; every developer
 runs it once.
 
-**`.env not found. Continuing without it.`** - harmless. The API looks for both the
-root `.env` and an optional `apps/api/.env`; the message is the latter, which most
-setups do not need.
+**`.env not found. Continuing without it.`** - the API looks for both the root `.env`
+and `apps/api/.env`, and one of them is missing. The api's own keys live in
+`apps/api/.env`, so if that is the one, copy `apps/api/.env.example` across.
 
 **Authentication works in Development but breaks in Production** - the ZAID differs
 per environment. Check which environment `.catalystrc` has active.

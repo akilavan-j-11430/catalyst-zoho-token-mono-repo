@@ -1,6 +1,6 @@
 /**
  * Every segment of every API path, declared once and shared by `apps/api`, which mounts
- * them, and `apps/web`, which calls them. A full path is a `join` of segments, so a route
+ * them, and `apps/web`, which calls them. A full path is the segments added together, so a route
  * moves by editing one value here.
  */
 export const ApiPath = {

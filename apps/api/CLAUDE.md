@@ -37,10 +37,10 @@ From `src/index.ts`, and the order is load-bearing:
 cannot land below the catch-all and quietly 404. Add it there, not here.
 
 Every path segment is a constant in `ApiPath` (`@repo/routing/api-path`), shared with
-`apps/web`; a full path is `join(...)` of them (`@repo/routing/path`). `api-router.ts`
-mounts each router under its own segment - `apiRouter.use(ApiPath.ZohoToken,
-zohoTokenRouter)` - and the router names only what follows it, `ApiPath.Callback`. So a
-router-level `use`, like the `validateUserAuthentication` on `zohoTokenRouter`, covers
+`apps/web`; a full path is their concatenation, `ApiPath.Api + ApiPath.V1`.
+`api-router.ts` mounts each router under its own segment -
+`apiRouter.use(ApiPath.ZohoToken, zohoTokenRouter)` - and the router names only what
+follows it, `ApiPath.Callback`. So a router-level `use`, like the `validateUserAuthentication` on `zohoTokenRouter`, covers
 that router's routes and nothing else.
 
 ## Execution context

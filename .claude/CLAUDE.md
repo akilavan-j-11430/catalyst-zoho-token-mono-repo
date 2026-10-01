@@ -35,8 +35,9 @@ Where new work goes:
 - Shapes both sides use -> `packages/types`, defined once and imported by both;
   never two definitions that can drift.
 - Route path segments -> `packages/routing`: `ApiPath` in `api-path.ts`, combined with
-  `join` from `path.ts`. `apps/api` mounts them and `apps/web` calls them, so a path
-  is never a string literal in either app. Client paths belong here too, in their own file.
+  `+` - `ApiPath.Api + ApiPath.V1`. `apps/api` mounts them and `apps/web` calls them, so
+  a path is never a string literal in either app. Client paths belong here too, in their
+  own file.
 - Server-side helpers -> `packages/node-utils`. It imports `node:async_hooks`, so
   it is `apps/api` only - never reach it from `apps/web`.
 - Never `apps/proxy`. It is local-only plumbing and ships nothing; a feature added

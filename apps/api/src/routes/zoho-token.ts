@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { ApiPath } from "@repo/routing/api-path";
-import { join } from "@repo/routing/path";
 import {
   ZohoAuthError,
   ZohoAuthErrorCode,
@@ -37,7 +36,7 @@ function requiredQuery(value: unknown, name: string): string {
  *  identically on consent and on the code exchange. */
 function callbackUri(): string {
   return new URL(
-    join(ApiPath.Api, ApiPath.V1, ApiPath.ZohoToken, ApiPath.Callback),
+    ApiPath.Api + ApiPath.V1 + ApiPath.ZohoToken + ApiPath.Callback,
     env.get("ZOHO_TOKEN_CALLBACK_ORIGIN"),
   ).toString();
 }

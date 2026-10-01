@@ -1,6 +1,5 @@
 import type { ErrorResponse, RecordResponse } from "@repo/types/api";
 import { ApiPath } from "@repo/routing/api-path";
-import { join } from "@repo/routing/path";
 import {
   HttpMethod,
   type HeaderResolver,
@@ -294,4 +293,4 @@ export async function recordOf<T>(response: ApiResponse): Promise<T> {
  * One instance for `apps/api`. The prefix lives here rather than on every path, and stays
  * relative so the proxy keeps the browser and the API on one origin.
  */
-export const api = new ApiClient({ baseUrl: join(ApiPath.Api, ApiPath.V1) });
+export const api = new ApiClient({ baseUrl: ApiPath.Api + ApiPath.V1 });

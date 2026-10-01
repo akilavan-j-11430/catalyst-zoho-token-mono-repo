@@ -223,7 +223,7 @@ curl http://localhost:3001/api/v1/nope
 | `apps/proxy` | Local development only. Routes `/api` to the API and everything else to the web app, including WebSocket upgrades for HMR. Enforces Catalyst login. Never deployed. |
 | `apps/api` | Express API. Establishes a per-request execution context holding the Catalyst app, times requests, and maps typed errors to HTTP statuses. |
 | `apps/web` | Next.js frontend. Calls the API with relative `/api/...` paths. |
-| `@repo/routing` | `ApiPath` segments and `join` - the API mounts them and the web app calls them, so no path is a string literal in either. |
+| `@repo/routing` | `ApiPath` segments, combined with `+` - the API mounts them and the web app calls them, so no path is a string literal in either. |
 | `@repo/types` | `RecordResponse`, `PagedRecordResponse`, `ErrorResponse` - imported by both the API and the web app so the contract is written once. |
 | `@repo/node-utils` | `ExecutionContext` over `AsyncLocalStorage`, a `logger` that stamps execution IDs, `RuntimeError`, `env`, `HttpClient`, and the Catalyst wrappers plus the resource handles built from them. |
 | `@repo/typescript-config` | `base.json`. Strict mode, `noUncheckedIndexedAccess`, ES2022. Every other tsconfig extends it. |

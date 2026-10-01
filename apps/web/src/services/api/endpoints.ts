@@ -1,5 +1,4 @@
 import { ApiPath } from "@repo/routing/api-path";
-import { join } from "@repo/routing/path";
 
 /**
  * Every path this app calls, in one place, each relative to the client's `baseUrl` the
@@ -7,6 +6,6 @@ import { join } from "@repo/routing/path";
  */
 export const endpoint = {
   auth: {
-    register: join(ApiPath.Auth, ApiPath.Register),
+    register: ApiPath.Auth + ApiPath.Register,
   },
 } as const;

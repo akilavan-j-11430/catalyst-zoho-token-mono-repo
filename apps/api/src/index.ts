@@ -1,7 +1,6 @@
 import "@/framework/catalyst-logger";
 import { setLogTimeZone } from "@repo/node-utils/framework/logger";
 import { ApiPath } from "@repo/routing/api-path";
-import { join } from "@repo/routing/path";
 import { ZohoConnection } from "@repo/node-utils/services/zoho/connection";
 import { env } from "@/env";
 import {
@@ -27,7 +26,7 @@ const PORT = Number(
 const app = express();
 app.use(express.json());
 app.use(ApiPath.Api, initExecutionContext, recordRequestTiming);
-app.use(join(ApiPath.Api, ApiPath.V1), apiRouter);
+app.use(ApiPath.Api + ApiPath.V1, apiRouter);
 app.use("/", (_req, res) => {
   res.status(404).json(toErrorResponse("The requested url does not exist."));
 });

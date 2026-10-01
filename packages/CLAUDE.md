@@ -5,7 +5,7 @@ Shared code for the monorepo. All four are private and consumed as `"workspace:*
 | Package | Holds |
 |---|---|
 | `@repo/types` | API response shapes shared by `apps/api` and `apps/web` |
-| `@repo/node-utils` | `ExecutionContext`, `logger`, `env`, `RuntimeError`, `HttpClient`, and the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user_management`) plus the resource handles built from them |
+| `@repo/node-utils` | `ExecutionContext`, `logger`, `env`, `RuntimeError`, `HttpClient`, and the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user-management`) plus the resource handles built from them |
 | `@repo/typescript-config` | `base.json` that every tsconfig extends |
 | `@repo/eslint-config` | flat ESLint config - currently unwired |
 
@@ -18,7 +18,7 @@ path under `src/`:
 ```ts
 import type { RecordResponse } from "@repo/types/api";              // src/api.ts
 import { logger } from "@repo/node-utils/framework/logger";         // src/framework/logger.ts
-import { currentContext } from "@repo/node-utils/framework/async_context";
+import { currentContext } from "@repo/node-utils/framework/async-context";
 import { zohoConnectionTable } from "@repo/node-utils/services/catalyst/resources";
 import { defineEnv } from "@repo/node-utils/utils/env";               // src/utils/env.ts
 ```
@@ -40,8 +40,8 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 - **Keep them framework-free.** Both an Express app and a Next.js app import these.
   No `express`, no `react`, no Next.js imports.
 - **`node-utils/src/services/catalyst/` is the only directory that may import a Catalyst
-  SDK.** ESLint enforces it; `framework/async_context.ts` is the one other exemption, and
-  only to carry the app's type. See `.claude/rules/catalyst_sdk.md`.
+  SDK.** ESLint enforces it; `framework/async-context.ts` is the one other exemption, and
+  only to carry the app's type. See `.claude/rules/catalyst-sdk.md`.
 - **Catalyst resources are declared once, in `services/catalyst/resources.ts`** - one
   `export const` per table, bucket, cache segment and job, built with the wrapper's
   `create` factory. Apps import the handle; they never construct a wrapper themselves.
@@ -54,10 +54,10 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 - `apps/api` bundles with esbuild and strips `@repo/*` from the deployed manifest, so
   package code is **inlined at bundle time**. Anything that needs to resolve at runtime
   - a file read relative to the package, a native module - will break in AppSail.
-- snake_case file names, `@/*` for internal imports.
+- kebab-case file names, `@/*` for internal imports.
 - `HttpClient` (`src/http/`) is the only way anything in this repo talks to an external
   service. Types live in `src/types/`, named constants in `src/enums/`, and the transport
-  seam is `src/types/http.ts` - see `.claude/rules/outbound_http.md` before adding an HTTP
+  seam is `src/types/http.ts` - see `.claude/rules/outbound-http.md` before adding an HTTP
   dependency.
 - **These packages own the env mechanism, never a key.** `src/utils/env.ts` exports
   `defineEnv<T>()`, which is generic and names no variable; each app declares what it

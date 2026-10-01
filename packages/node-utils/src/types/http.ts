@@ -1,4 +1,4 @@
-import type { HttpMethod } from "@/enums/http_method";
+import type { HttpMethod } from "@/enums/http-method";
 import type {
   HeaderResolver,
   HttpResponse,

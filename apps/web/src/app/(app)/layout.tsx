@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AuthGate } from "@/components/auth/auth_gate";
+import { AuthGate } from "@/components/auth/auth-gate";
 
 // Every route in this group is behind the gate; /sign-in and /sign-up sit in (auth).
 export default function AppLayout({ children }: { children: ReactNode }) {

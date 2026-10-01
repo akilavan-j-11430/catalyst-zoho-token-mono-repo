@@ -1,7 +1,7 @@
-import { ErrorCode } from "@/enums/error_codes";
-import { CatalystError } from "@/errors/catalyst_error";
+import { ErrorCode } from "@/enums/error-codes";
+import { CatalystError } from "@/errors/catalyst-error";
 import { Datastore } from "@zcatalyst/datastore";
-import { currentContext } from "@/framework/async_context";
+import { currentContext } from "@/framework/async-context";
 import type { TableRow } from "@/services/catalyst/table";
 
 type ZCQLResult = Awaited<ReturnType<Datastore["executeZCQLQuery"]>>;

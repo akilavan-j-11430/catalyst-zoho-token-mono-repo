@@ -1,4 +1,4 @@
-import { RuntimeError } from "@/errors/runtime_error";
+import { RuntimeError } from "@/errors/runtime-error";
 
 /** The codes this repo raises itself, plus the Zoho one a route matches on. Zoho's other
  *  `error` values - `invalid_client` and the rest - arrive in the same field, so `code`

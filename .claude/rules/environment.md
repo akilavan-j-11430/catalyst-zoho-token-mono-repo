@@ -58,14 +58,14 @@ A package under `packages/` has no keys of its own and no `src/env.ts`. It takes
 needs as a parameter, so the app that owns the variable is the one that reads it:
 
 ```ts
-// packages/node-utils/src/services/catalyst/user_management.ts
+// packages/node-utils/src/services/catalyst/user-management.ts
 static async register(user: NewUser, redirectUrl: string): Promise<RegisteredUser>
 
 // apps/api/src/routes/auth.ts
 await UserManagement.register(user, env.get("AUTH_REDIRECT_URL"));
 ```
 
-It is the same rule as `.claude/rules/catalyst_sdk.md` - a wrapper takes and returns plain
+It is the same rule as `.claude/rules/catalyst-sdk.md` - a wrapper takes and returns plain
 values - and it is what makes the failure land in the route, which is what the variable
 configures.
 
@@ -90,7 +90,7 @@ Catalyst injects these itself and they are read at module scope, before any app 
 exists. They stay as they are:
 
 - `apps/api/src/index.ts` - `X_ZOHO_CATALYST_LISTEN_PORT`, `PORT`
-- `apps/api/src/framework/catalyst_logger.ts` - `X_ZOHO_SPARKLET_LOG_FD`
+- `apps/api/src/framework/catalyst-logger.ts` - `X_ZOHO_SPARKLET_LOG_FD`
 - `apps/proxy/src/index.ts` - `X_ZOHO_CATALYST_LISTEN_PORT`
 
 They are not configuration this repo owns, so they do not belong on a template. `apps/proxy`

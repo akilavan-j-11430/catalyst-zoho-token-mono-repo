@@ -1,6 +1,6 @@
-import { CatalystError } from "@/errors/catalyst_error";
+import { CatalystError } from "@/errors/catalyst-error";
 import { Stratus } from "@zcatalyst/stratus";
-import { currentContext } from "@/framework/async_context";
+import { currentContext } from "@/framework/async-context";
 import { Readable } from "node:stream";
 
 type CatalystBucket = ReturnType<Stratus["bucket"]>;

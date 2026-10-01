@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { RuntimeError } from "@/errors/runtime_error";
+import { RuntimeError } from "@/errors/runtime-error";
 
 
 /** Per-request values carried on the execution context. */

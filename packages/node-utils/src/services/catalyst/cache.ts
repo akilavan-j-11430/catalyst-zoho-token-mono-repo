@@ -1,5 +1,5 @@
 import { Cache as CacheClient } from "@zcatalyst/cache";
-import { currentContext } from "@/framework/async_context";
+import { currentContext } from "@/framework/async-context";
 
 /** The SDK exports only its top-level clients, so segment/bucket/table types are
  *  derived from the methods that produce them rather than imported. */

@@ -1,4 +1,4 @@
-import { RuntimeError } from "@/errors/runtime_error";
+import { RuntimeError } from "@/errors/runtime-error";
 
 /**
  * A map that forgets its least recently used entry once it is full.

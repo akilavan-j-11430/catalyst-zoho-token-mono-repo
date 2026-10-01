@@ -54,7 +54,7 @@ speaks in, not how large a given line is.
 
 ## The sign-in iframe
 
-`public/catalyst_signin.css` is the one file that names a family twice, and it has to.
+`public/catalyst-signin.css` is the one file that names a family twice, and it has to.
 
 It styles the Catalyst IAM widget, which is a separate cross-origin document. It cannot
 read this document's custom properties, so its `--app-font` is a literal stack rather than
@@ -69,7 +69,7 @@ Three things must stay in step by hand when the app's typeface changes:
 
 1. the `next/font` loader in `layout.tsx`
 2. the `--font-*` tokens in `globals.css`
-3. the `@font-face` and `--app-font` in `public/catalyst_signin.css`
+3. the `@font-face` and `--app-font` in `public/catalyst-signin.css`
 
 Verify the third by rendering the widget and looking at it. A green build says nothing
 about which face the iframe actually got.

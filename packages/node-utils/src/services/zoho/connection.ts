@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { ZohoAuthError, ZohoAuthErrorCode } from "@/errors/zoho_auth_error";
-import { currentContext } from "@/framework/async_context";
+import { ZohoAuthError, ZohoAuthErrorCode } from "@/errors/zoho-auth-error";
+import { currentContext } from "@/framework/async-context";
 import {
   zohoConnectionCache,
   zohoConnectionTable,
 } from "@/services/catalyst/resources";
-import { UserManagement } from "@/services/catalyst/user_management";
+import { UserManagement } from "@/services/catalyst/user-management";
 import { Zcql } from "@/services/catalyst/zcql";
 import { ZohoAccounts, type ZohoCredentials } from "@/services/zoho/accounts";
-import { LruCache } from "@/utils/lru_cache";
+import { LruCache } from "@/utils/lru-cache";
 
 const TABLE = "ZohoConnection";
 /** Where the grant owner is kept for the rest of the execution. */

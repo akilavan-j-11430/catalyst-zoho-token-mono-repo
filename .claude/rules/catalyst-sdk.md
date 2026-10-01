@@ -2,7 +2,7 @@
 
 Every Catalyst SDK call goes through `packages/node-utils/src/services/catalyst/`. No
 `@zcatalyst/*` package may be imported anywhere else. ESLint enforces it; the only other
-exemption is `framework/async_context.ts`, which carries the app's type across the request.
+exemption is `framework/async-context.ts`, which carries the app's type across the request.
 
 One file per component - `bucket.ts`, `table.ts`, `zcql.ts`, `cache.ts`, `job.ts` - plus
 `resources.ts`, which names the resources. Each component builds the SDK client
@@ -12,7 +12,7 @@ app nowhere else:
 ```ts
 // packages/node-utils/src/services/catalyst/bucket.ts
 import { Stratus } from "@zcatalyst/stratus";
-import { currentContext } from "@/framework/async_context";
+import { currentContext } from "@/framework/async-context";
 
 function stratus(): Stratus {
   return new Stratus(currentContext().manager.catalyst);
@@ -135,7 +135,7 @@ repo's vocabulary to a Catalyst call, so:
 
 - Take and return plain values - `string`, `Readable`, a domain type. Never hand an SDK
   object back to a caller, or the seam leaks.
-- Throw `CatalystError` (`@/errors/catalyst_error`) with an `ErrorCode`, never a raw SDK
+- Throw `CatalystError` (`@/errors/catalyst-error`) with an `ErrorCode`, never a raw SDK
   error.
 - Validate what Catalyst will reject anyway - a TTL under 60s, an alias over 20 chars -
   before spending the round trip.

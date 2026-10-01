@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { UserManagement } from "@repo/node-utils/services/catalyst/user_management";
+import { UserManagement } from "@repo/node-utils/services/catalyst/user-management";
 import type { NewUser } from "@repo/types/user";
 import { env } from "@/env";
-import { HttpError } from "@/errors/http_error";
+import { HttpError } from "@/errors/http-error";
 import { toRecordResponse } from "@/utils/api";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

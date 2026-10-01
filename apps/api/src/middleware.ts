@@ -9,11 +9,11 @@ import {
   currentContext,
   ExecutionContext,
   runWithContext,
-} from "@repo/node-utils/framework/async_context";
+} from "@repo/node-utils/framework/async-context";
 import { logger } from "@repo/node-utils/framework/logger";
 import { randomUUID } from "crypto";
 import { zcAuth } from "@zcatalyst/auth";
-import { HttpError } from "@/errors/http_error";
+import { HttpError } from "@/errors/http-error";
 import { toErrorResponse } from "@/utils/api";
 
 /** Records the timing of request execution from start to finish. */

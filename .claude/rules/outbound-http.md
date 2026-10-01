@@ -1,7 +1,7 @@
 # Outbound HTTP
 
 Every request to a service outside this monorepo goes through `HttpClient`
-(`@repo/node-utils/http/http_client`). No `fetch`, no `axios`, no `node:https`, no other
+(`@repo/node-utils/http/http-client`). No `fetch`, no `axios`, no `node:https`, no other
 client in `apps/api` or `packages/*`. ESLint enforces this; the transports under
 `packages/node-utils/src/http/` are the only exemption.
 
@@ -14,7 +14,7 @@ implementation - not touching call sites.
 One instance per external service, built once at module scope:
 
 ```ts
-import { HttpClient } from "@repo/node-utils/http/http_client";
+import { HttpClient } from "@repo/node-utils/http/http-client";
 
 const billing = new HttpClient({
   baseUrl: "https://billing.example.com/v2",
@@ -80,8 +80,8 @@ When the default is not specific enough, say so with a `content-type` header. Th
 separate option for it - one channel, with both halves named:
 
 ```ts
-import { ContentType } from "@repo/node-utils/enums/content_type";
-import { HttpHeader } from "@repo/node-utils/enums/http_header";
+import { ContentType } from "@repo/node-utils/enums/content-type";
+import { HttpHeader } from "@repo/node-utils/enums/http-header";
 
 await api.post("/orders", "<order/>", {
   headers: { [HttpHeader.ContentType]: ContentType.Xml },
@@ -127,7 +127,7 @@ still readable.
 ## Failures
 
 Both a non-2xx and an unreachable host reject with `HttpRequestError`
-(`@repo/node-utils/errors/http_request_error`). Everything needed to debug is flat and
+(`@repo/node-utils/errors/http-request-error`). Everything needed to debug is flat and
 synchronous - `method`, `url`, `status`, `headers`, `body` - so logging a failure never
 has to await, and its `toString()` prints all of it plus the stack:
 
@@ -176,8 +176,8 @@ const billing = new HttpClient({
 Note this is an undici `Dispatcher`, not a `node:http` `Agent` - fetch does not take the
 latter. Omit it and undici's global dispatcher already pools connections.
 
-To move to axios, add `packages/node-utils/src/http/axios_transport.ts` beside
-`fetch_transport.ts` and pass `transport: axiosTransport`; its equivalent option would be
+To move to axios, add `packages/node-utils/src/http/axios-transport.ts` beside
+`fetch-transport.ts` and pass `transport: axiosTransport`; its equivalent option would be
 `httpAgent`/`httpsAgent` in the same position. Note axios would be a new runtime
 dependency, which per the root instructions is a decision to bring back to the user - and
 it must be added to `apps/api/package.json` too, since `scripts/bundle.mjs` derives the
@@ -188,4 +188,4 @@ deployed manifest from that file alone.
 `apps/web` calls this repo's own API through the proxy. That is not an external request,
 and `apps/web` cannot import `node-utils` anyway - it has its own client in
 `src/services/api/client.ts`, built to this same standard and returning the same
-`HttpResponse` from `@repo/types/http`. `.claude/rules/web_data_access.md` is its rule.
+`HttpResponse` from `@repo/types/http`. `.claude/rules/web-data-access.md` is its rule.

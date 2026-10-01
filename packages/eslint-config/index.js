@@ -3,9 +3,9 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 const USE_HTTP_CLIENT =
-  "Use HttpClient from @repo/node-utils/http/http_client. See .claude/rules/outbound_http.md.";
+  "Use HttpClient from @repo/node-utils/http/http-client. See .claude/rules/outbound-http.md.";
 const USE_CATALYST_PACKAGE =
-  "Call Catalyst through @repo/node-utils/services/catalyst/*. See .claude/rules/catalyst_sdk.md.";
+  "Call Catalyst through @repo/node-utils/services/catalyst/*. See .claude/rules/catalyst-sdk.md.";
 
 // Exact specifiers, not patterns: a "http" pattern is glob-matched and would also
 // reject every import under an http/ directory.
@@ -80,7 +80,7 @@ export default tseslint.config(
   },
   {
     // The transports are the seam HttpClient sits on, so they use the real thing.
-    files: ["**/http/*_transport.ts"],
+    files: ["**/http/*-transport.ts"],
     rules: { "no-restricted-globals": "off" },
   },
   {

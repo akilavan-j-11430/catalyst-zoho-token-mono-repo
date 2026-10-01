@@ -1,4 +1,4 @@
-import { SignedInAccount } from "@/components/auth/signed_in_account";
+import { SignedInAccount } from "@/components/auth/signed-in-account";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function HomePage() {

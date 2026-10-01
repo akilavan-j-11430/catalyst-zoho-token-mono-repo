@@ -1,5 +1,5 @@
-import type { HttpMethod } from "@/enums/http_method";
-import { RuntimeError } from "@/errors/runtime_error";
+import type { HttpMethod } from "@/enums/http-method";
+import { RuntimeError } from "@/errors/runtime-error";
 
 /** Everything known about a failed call, flat and synchronous so it can be logged. */
 interface Failure {

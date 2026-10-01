@@ -1,7 +1,7 @@
 "use client";
 
-import { appUrl, authSession, type SignedInUser } from "@/catalyst/auth_client";
-import { useSignedInUser } from "@/components/auth/auth_gate";
+import { appUrl, authSession, type SignedInUser } from "@/catalyst/auth-client";
+import { useSignedInUser } from "@/components/auth/auth-gate";
 import { Button } from "@/components/ui/button";
 
 function displayName(user: SignedInUser): string {

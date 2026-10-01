@@ -3,7 +3,7 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 const FETCH_MESSAGE =
-  "Call the API through src/services/ - see .claude/rules/web_data_access.md.";
+  "Call the API through src/services/ - see .claude/rules/web-data-access.md.";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -11,7 +11,7 @@ const eslintConfig = defineConfig([
   // `src/services/api/client.ts` is the only place that speaks HTTP, the way
   // `services/catalyst/` is the only place that reaches Catalyst. Prose drifts; this
   // does not.
-  // See `.claude/rules/web_data_access.md`.
+  // See `.claude/rules/web-data-access.md`.
   {
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/services/api/client.ts"],

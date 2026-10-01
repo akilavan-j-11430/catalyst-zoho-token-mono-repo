@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { currentUser, type SignedInUser } from "@/catalyst/auth_client";
+import { currentUser, type SignedInUser } from "@/catalyst/auth-client";
 import { Loader } from "@/components/shared/loader";
 
 const SignedInUserContext = createContext<SignedInUser | null>(null);

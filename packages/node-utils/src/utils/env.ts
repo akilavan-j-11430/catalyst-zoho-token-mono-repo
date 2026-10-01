@@ -1,4 +1,4 @@
-import { RuntimeError } from "@/errors/runtime_error";
+import { RuntimeError } from "@/errors/runtime-error";
 
 /** The keys one app reads, each mapped to the string the environment holds. */
 export type EnvKeys = Record<string, string>;

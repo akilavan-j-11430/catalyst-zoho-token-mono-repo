@@ -14,12 +14,12 @@ src/
 |-- middleware.ts         execution context, request timing, terminal error handler
 |-- routes/ping.ts        reference route - copy this shape
 |-- routes/auth.ts        POST /auth/register - registers a Catalyst app user
-|-- errors/http_error.ts  typed failures that map to HTTP statuses
+|-- errors/http-error.ts  typed failures that map to HTTP statuses
 |-- utils/api.ts          response builders
-`-- framework/catalyst_logger.ts   console -> Catalyst log pipe, imported for side effect
+`-- framework/catalyst-logger.ts   console -> Catalyst log pipe, imported for side effect
 ```
 
-`catalyst_logger` is imported first in `index.ts` purely for its side effect: it
+`catalyst-logger` is imported first in `index.ts` purely for its side effect: it
 replaces the `console` methods so logs are framed for Catalyst's collector. It exports
 nothing you should call.
 
@@ -29,11 +29,11 @@ From `src/index.ts`, and the order is load-bearing:
 
 1. `express.json()`
 2. `/api` -> `initExecutionContext`, then `recordRequestTiming`
-3. `/api` -> `apiRouter` (`src/routes/api_router.ts`), which holds every route
+3. `/api` -> `apiRouter` (`src/routes/api-router.ts`), which holds every route
 4. `/` -> JSON 404 catch-all
 5. `errorHandler` (terminal)
 
-`index.ts` mounts one router, and `api_router.ts` composes the rest, so a new route
+`index.ts` mounts one router, and `api-router.ts` composes the rest, so a new route
 cannot land below the catch-all and quietly 404. Add it there, not here.
 
 ## Execution context
@@ -80,9 +80,9 @@ static - `Zcql.executeQuery("SELECT ...")`.
 If a handle cannot do what the route needs, **add the method to the wrapper** rather than
 reaching for the SDK here. A single-use method is still the right shape.
 
-The wrappers throw `CatalystError` (`@repo/node-utils/errors/catalyst_error`), which carries
+The wrappers throw `CatalystError` (`@repo/node-utils/errors/catalyst-error`), which carries
 an `ErrorCode`; catch it at the route only to map onto an `HttpError`, otherwise let it
-reach `errorHandler` as a 500. `.claude/rules/catalyst_sdk.md` is the full rule.
+reach `errorHandler` as a 500. `.claude/rules/catalyst-sdk.md` is the full rule.
 
 `currentContext()` throws outside a request. Carry anything else request-scoped via
 `manager.setExtras(key, value)` / `manager.getExtras<T>(key)`.
@@ -102,13 +102,13 @@ pingRouter.get("/ping", (_req, res) => {
 });
 ```
 
-Then add one line to `src/routes/api_router.ts` - `apiRouter.use(pingRouter)`. The `: Router`
+Then add one line to `src/routes/api-router.ts` - `apiRouter.use(pingRouter)`. The `: Router`
 annotation is not optional: the declaration emit cannot infer the type across the package
 boundary without it.
 
 ## Errors and responses
 
-Throw `HttpError` (`src/errors/http_error.ts`) rather than setting a status by hand -
+Throw `HttpError` (`src/errors/http-error.ts`) rather than setting a status by hand -
 `BadRequest` 400, `Unauthorized` 401, `NotFound` 404, `Conflict` 409. `errorHandler`
 maps those; anything else is logged and becomes a 500 with a generic message, so do not
 expect a raw thrown error to surface its message to the client.
@@ -124,9 +124,9 @@ The shapes live in `@repo/types/api` so the web app imports the same ones.
 
 ## Calling an external API
 
-Through `HttpClient` from `@repo/node-utils/http/http_client` - never `fetch` or another
+Through `HttpClient` from `@repo/node-utils/http/http-client` - never `fetch` or another
 client directly. One instance per service at module scope; the full rule, the body and
-response shapes and the transport seam are in `.claude/rules/outbound_http.md`.
+response shapes and the transport seam are in `.claude/rules/outbound-http.md`.
 
 The body decides its own encoding - an object becomes JSON, a string is text, `FormData`
 is multipart. A third argument refines that but may not contradict it. A call resolves to

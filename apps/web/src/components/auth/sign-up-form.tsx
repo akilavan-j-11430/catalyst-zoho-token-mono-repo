@@ -10,7 +10,7 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { NewUser, RegisteredUser } from "@repo/types/user";
 import { registerUser } from "@/services/auth";
-import { FormField } from "@/components/shared/form_field";
+import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/shared/loader";
 import { FieldGroup } from "@/components/ui/field";

@@ -1,4 +1,4 @@
-import "@/framework/catalyst_logger";
+import "@/framework/catalyst-logger";
 import { setLogTimeZone } from "@repo/node-utils/framework/logger";
 import { ZohoConnection } from "@repo/node-utils/services/zoho/connection";
 import { env } from "@/env";
@@ -7,7 +7,7 @@ import {
   initExecutionContext,
   recordRequestTiming,
 } from "@/middleware";
-import { apiRouter } from "@/routes/api_router";
+import { apiRouter } from "@/routes/api-router";
 import { toErrorResponse } from "@/utils/api";
 import express from "express";
 

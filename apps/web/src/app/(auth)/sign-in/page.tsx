@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { SignInWidget } from "@/components/auth/sign_in_widget";
-import { CardFooterLink } from "@/components/auth/card_footer_link";
+import { SignInWidget } from "@/components/auth/sign-in-widget";
+import { CardFooterLink } from "@/components/auth/card-footer-link";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "Sign in" };

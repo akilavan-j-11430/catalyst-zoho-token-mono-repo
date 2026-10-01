@@ -34,7 +34,7 @@ component is invisible there.
 | a path | `src/services/api/endpoints.ts`, nowhere else |
 | something the client cannot express yet - an upload, a retry, a redirect policy | `src/services/api/client.ts` |
 | a header, a timeout, a retry, a move off `fetch` | `src/services/api/client.ts` |
-| query keys, once more than one query exists | `src/services/query_keys.ts` |
+| query keys, once more than one query exists | `src/services/query-keys.ts` |
 | a form's validation rules | the component that owns the form, as a `Resolver` - until a second form needs them |
 | a shape `apps/api` also uses | `packages/types/src/<name>.ts` |
 
@@ -43,7 +43,7 @@ tempting shortcut:
 
 - **A capability the client does not have is added to the client**, never a `fetch` at
   the call site and never a second client. It is the same rule as
-  `.claude/rules/catalyst_sdk.md`: a capability used from a call site but invisible in the
+  `.claude/rules/catalyst-sdk.md`: a capability used from a call site but invisible in the
   layer is the thing to avoid. One that turns out to be single-use is still the right
   shape - the client is a seam, and a seam is right at one caller.
 - **A service function never builds a URL.** It names one from `endpoint`. If the path
@@ -187,7 +187,7 @@ const { mutate, isPending } = useMutation({
 
 A query key starts with the domain and narrows - `["warranty", id]` - so a mutation can
 invalidate a whole domain or one record. When the first real query arrives, the keys move
-into `src/services/query_keys.ts` and stop being written inline.
+into `src/services/query-keys.ts` and stop being written inline.
 
 **Failures are already handled.** `QueryProvider` wires `onError` on both the query and
 the mutation cache to a toast, so a call site writes `onSuccess` and nothing else. Add a
@@ -202,13 +202,13 @@ does not.
 **Every form is react-hook-form.** No `useState` per field, no hand-rolled `onChange`.
 
 Rules reach the form as a `Resolver`, and the resolver lives **in the component that owns
-the form** - `sign_up_form.tsx` is the worked example. One form's rules are used by one
+the form** - `sign-up-form.tsx` is the worked example. One form's rules are used by one
 form, and a file that exists only to move fifteen lines somewhere else buys nothing; it
 moves out when a second form needs the same rules, and that form tells you what the shared
 shape is. This is the general rule in `.claude/CLAUDE.md` about what earns a file.
 
 The resolver returns cleaned values - trimmed, coerced - so whatever submits them never
-repeats that work. `FormField` (`components/shared/form_field.tsx`) takes the result of
+repeats that work. `FormField` (`components/shared/form-field.tsx`) takes the result of
 `register` as its `field` prop.
 
 Client-side rules are for the person typing, not for the server. `apps/api` validates the

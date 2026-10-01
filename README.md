@@ -352,7 +352,7 @@ Short version; `CLAUDE.md` has the full list.
   climbing with `../../`.
 - **Subpath imports.** Shared packages have no barrel file. Import the exact module:
   `@repo/types/api`, `@repo/node-utils/framework/logger`.
-- **File names** are snake_case: `http_error.ts`, `async_context.ts`.
+- **File names** are kebab-case: `http-error.ts`, `async-context.ts`.
 - **Naming.** Identifiers and JSON keys are camelCase: `emailId`, `nextPageToken`. A
   vendor's own wire shape (`email_id`, `ROWID`) keeps its spelling and is converted at
   the wrapper.
@@ -439,14 +439,14 @@ Alongside them, `.claude/rules/` holds one file per topic, loaded automatically:
 
 | Rule | Covers |
 |---|---|
-| `catalyst_sdk.md` | every Catalyst SDK call, and the wrappers they go through |
-| `outbound_http.md` | every call to a service outside this repo |
-| `web_data_access.md` | every call the browser makes to our own API, and every form |
+| `catalyst-sdk.md` | every Catalyst SDK call, and the wrappers they go through |
+| `outbound-http.md` | every call to a service outside this repo |
+| `web-data-access.md` | every call the browser makes to our own API, and every form |
 | `environment.md` | every environment variable - who declares it and where values live |
 | `typography.md` | fonts: one family, named in one file |
 
 A rule that applies to only part of the tree says so in `paths:` frontmatter, the way
-`web_data_access.md` and `typography.md` scope themselves to `apps/web/**`.
+`web-data-access.md` and `typography.md` scope themselves to `apps/web/**`.
 
 Keep all of it accurate when you change the structure - a stale one is worse than none.
 Put a new convention in `.claude/rules/` rather than growing a `CLAUDE.md`.

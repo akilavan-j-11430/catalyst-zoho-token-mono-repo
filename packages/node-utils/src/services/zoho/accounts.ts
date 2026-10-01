@@ -1,10 +1,10 @@
-import { HttpRequestError } from "@/errors/http_request_error";
+import { HttpRequestError } from "@/errors/http-request-error";
 import {
   accountsHttpCode,
   ZohoAuthErrorCode,
   ZohoAuthError,
-} from "@/errors/zoho_auth_error";
-import { HttpClient } from "@/http/http_client";
+} from "@/errors/zoho-auth-error";
+import { HttpClient } from "@/http/http-client";
 
 /** What identifies this application to Zoho. Supplied by the app that owns the keys. */
 export interface ZohoCredentials {

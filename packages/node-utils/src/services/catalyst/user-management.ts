@@ -1,7 +1,7 @@
 import { UserManagement as UserManagementClient } from "@zcatalyst/auth";
 import type { NewUser, RegisteredUser } from "@repo/types/user";
-import { CatalystError } from "@/errors/catalyst_error";
-import { currentContext } from "@/framework/async_context";
+import { CatalystError } from "@/errors/catalyst-error";
+import { currentContext } from "@/framework/async-context";
 
 type RegisteredUserDetails = Awaited<
   ReturnType<UserManagementClient["registerUser"]>

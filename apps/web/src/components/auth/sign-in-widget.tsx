@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { appUrl, authSession } from "@/catalyst/auth_client";
+import { appUrl, authSession } from "@/catalyst/auth-client";
 import { Loader } from "@/components/shared/loader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -13,7 +13,7 @@ const IFRAME_ID = "iam_iframe";
  * it with no content hash, so a stale sheet survives a reload and the widget comes
  * back with the platform's own 520px layout. Bump on every edit to the file.
  */
-const STYLESHEET = "/catalyst_signin.css?r=2";
+const STYLESHEET = "/catalyst-signin.css?r=2";
 
 const CONTENT_ALLOWANCE = 16;
 

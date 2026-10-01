@@ -2,10 +2,10 @@ import { Router } from "express";
 import {
   ZohoAuthError,
   ZohoAuthErrorCode,
-} from "@repo/node-utils/errors/zoho_auth_error";
+} from "@repo/node-utils/errors/zoho-auth-error";
 import { ZohoConnection } from "@repo/node-utils/services/zoho/connection";
 import { env } from "@/env";
-import { HttpError } from "@/errors/http_error";
+import { HttpError } from "@/errors/http-error";
 import { toRecordResponse } from "@/utils/api";
 
 /** Failures the user fixes by starting consent again. Every other `ZohoAuthError` -

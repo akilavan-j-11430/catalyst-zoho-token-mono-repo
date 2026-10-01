@@ -18,8 +18,8 @@ type ApiEnv = {
   ZOHO_SCOPES: string;
   /** The accounts server for the DC, scheme and all - https://accounts.zoho.in */
   ZOHO_ACCOUNTS_URL: string;
-  /** Where Zoho returns the grant code. Must equal the Authorized Redirect URI on the client. */
-  ZOHO_REDIRECT_URI: string;
+  /** The origin `catalyst serve` or the deployed domain serves - http://localhost:3001 */
+  APP_ORIGIN: string;
 };
 
 export const env = defineEnv<ApiEnv>();

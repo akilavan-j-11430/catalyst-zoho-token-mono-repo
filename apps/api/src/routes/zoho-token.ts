@@ -30,44 +30,30 @@ function requiredQuery(value: unknown, name: string): string {
   return value;
 }
 
-/** A caller with no grant stored is a `false`, not a failure. Anything else - Zoho down,
- *  a revoked token - is a real error and belongs in `errorHandler` as a 500. */
-async function hasUsableToken(): Promise<boolean> {
-  try {
-    await ZohoConnection.getToken();
-    return true;
-  } catch (error) {
-    if (
-      error instanceof ZohoAuthError &&
-      error.code === ZohoAuthErrorCode.NotConnected
-    ) {
-      return false;
-    }
-    throw error;
-  }
+/** Zoho matches it exactly against the client's Authorized Redirect URI, so it is sent
+ *  identically on consent and on the code exchange. */
+function callbackUri(): string {
+  return new URL("/api/zoho-token/callback", env.get("APP_ORIGIN")).toString();
 }
+
+/** Where the browser lands once the connection exists. */
+const APP_HOME = "/";
 
 export const zohoTokenRouter: Router = Router();
 
 zohoTokenRouter.get("/zoho-token/connect", async (_req, res) => {
   if (await ZohoConnection.hasToken()) {
-    res.json(toRecordResponse({ connected: true }));
+    res.redirect(APP_HOME);
     return;
   }
-  res.redirect(
-    await ZohoConnection.consentUrl(zohoScopes(), env.get("ZOHO_REDIRECT_URI")),
-  );
+  res.redirect(await ZohoConnection.consentUrl(zohoScopes(), callbackUri()));
 });
 
 zohoTokenRouter.get("/zoho-token/callback", async (req, res) => {
   const code = requiredQuery(req.query["code"], "code");
   const state = requiredQuery(req.query["state"], "state");
   try {
-    await ZohoConnection.persistToken(
-      code,
-      state,
-      env.get("ZOHO_REDIRECT_URI"),
-    );
+    await ZohoConnection.persistToken(code, state, callbackUri());
   } catch (error) {
     if (error instanceof ZohoAuthError && RESTART_CONSENT.has(error.code)) {
       throw HttpError.BadRequest(
@@ -76,9 +62,9 @@ zohoTokenRouter.get("/zoho-token/callback", async (req, res) => {
     }
     throw error;
   }
-  res.json(toRecordResponse({ connected: true }));
+  res.redirect(APP_HOME);
 });
 
 zohoTokenRouter.get("/zoho-token/status", async (_req, res) => {
-  res.json(toRecordResponse({ connected: await hasUsableToken() }));
+  res.json(toRecordResponse({ connected: await ZohoConnection.hasToken() }));
 });

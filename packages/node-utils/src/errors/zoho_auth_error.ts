@@ -1,11 +1,18 @@
 import { RuntimeError } from "@/errors/runtime_error";
 
-/** The codes this repo raises itself. Zoho's own `error` values - `invalid_code`,
- *  `invalid_client` - arrive in the same field, so `code` stays a plain string. */
-export const ZohoAuthCode = {
+/** The codes this repo raises itself, plus the Zoho one a route matches on. Zoho's other
+ *  `error` values - `invalid_client` and the rest - arrive in the same field, so `code`
+ *  stays a plain string. */
+export const ZohoAuthErrorCode = {
   /** No grant is stored for this reference id. */
   NotConnected: "not_connected",
   InvalidReferenceId: "invalid_reference_id",
+  /** `ZohoConnection.setCredentials` was never called. */
+  NotConfigured: "not_configured",
+  /** The callback's `state` is not the one issued to this user. */
+  StateMismatch: "state_mismatch",
+  /** Zoho's own code for a grant code that is expired, already used, or simply wrong. */
+  InvalidGrantCode: "invalid_code",
   /** Zoho answered, but with something that is not a JSON object. */
   UnreadableResponse: "unreadable_response",
   MissingRefreshToken: "missing_refresh_token",
@@ -14,7 +21,8 @@ export const ZohoAuthCode = {
   AccountsUnreachable: "accounts_unreachable",
 } as const;
 
-export type ZohoAuthCode = (typeof ZohoAuthCode)[keyof typeof ZohoAuthCode];
+export type ZohoAuthErrorCode =
+  (typeof ZohoAuthErrorCode)[keyof typeof ZohoAuthErrorCode];
 
 /** Names the status Zoho answered with, so a route can match one without matching all. */
 export function accountsHttpCode(status: number): string {

@@ -1,7 +1,7 @@
 import { HttpRequestError } from "@/errors/http_request_error";
 import {
   accountsHttpCode,
-  ZohoAuthCode,
+  ZohoAuthErrorCode,
   ZohoAuthError,
 } from "@/errors/zoho_auth_error";
 import { HttpClient } from "@/http/http_client";
@@ -43,7 +43,7 @@ const DEFAULT_EXPIRY_SECONDS = 3600;
 function toPayload(body: unknown): ZohoTokenPayload {
   if (typeof body !== "object" || body === null) {
     throw new ZohoAuthError(
-      ZohoAuthCode.UnreadableResponse,
+      ZohoAuthErrorCode.UnreadableResponse,
       "Zoho did not return a JSON object.",
     );
   }
@@ -62,14 +62,14 @@ function toPayload(body: unknown): ZohoTokenPayload {
 function toAuthError(cause: HttpRequestError): ZohoAuthError {
   if (cause.status === undefined) {
     return new ZohoAuthError(
-      ZohoAuthCode.AccountsUnreachable,
+      ZohoAuthErrorCode.AccountsUnreachable,
       `The Zoho accounts server could not be reached: ${cause.message}`,
       cause,
     );
   }
   if (cause.status < 300) {
     return new ZohoAuthError(
-      ZohoAuthCode.UnreadableResponse,
+      ZohoAuthErrorCode.UnreadableResponse,
       `Zoho answered ${cause.status} with a body that is not JSON.`,
       cause,
     );
@@ -81,20 +81,20 @@ function toAuthError(cause: HttpRequestError): ZohoAuthError {
   );
 }
 
-/** The Zoho accounts server for one DC. */
+/** The Zoho accounts server. Stateless: whoever calls it supplies the credentials, so
+ *  this file holds no configuration and stores nothing. */
 export class ZohoAccounts {
-  private readonly client: HttpClient;
-
-  private constructor(private readonly credentials: ZohoCredentials) {
-    this.client = new HttpClient({ baseUrl: credentials.accountsUrl });
-  }
-
   /** Where to send the browser for consent. `access_type=offline` is what makes Zoho
    *  return a refresh token at all - without it there is nothing to persist. */
-  consentUrl(scopes: string[], redirectUri: string, state: string): string {
-    const url = new URL(AUTH_PATH, this.credentials.accountsUrl);
+  static consentUrl(
+    credentials: ZohoCredentials,
+    scopes: string[],
+    redirectUri: string,
+    state: string,
+  ): string {
+    const url = new URL(AUTH_PATH, credentials.accountsUrl);
     url.searchParams.set("scope", scopes.join(","));
-    url.searchParams.set("client_id", this.credentials.clientId);
+    url.searchParams.set("client_id", credentials.clientId);
     url.searchParams.set("response_type", "code");
     url.searchParams.set("access_type", "offline");
     url.searchParams.set("redirect_uri", redirectUri);
@@ -103,8 +103,12 @@ export class ZohoAccounts {
   }
 
   /** Trades the one-time grant code for a refresh token. Runs once per connection. */
-  async exchangeCode(code: string, redirectUri: string): Promise<ZohoGrant> {
-    const payload = await this.requestToken({
+  static async exchangeCode(
+    credentials: ZohoCredentials,
+    code: string,
+    redirectUri: string,
+  ): Promise<ZohoGrant> {
+    const payload = await ZohoAccounts.requestToken(credentials, {
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri,
@@ -114,7 +118,7 @@ export class ZohoAccounts {
       payload.access_token === undefined
     ) {
       throw new ZohoAuthError(
-        ZohoAuthCode.MissingRefreshToken,
+        ZohoAuthErrorCode.MissingRefreshToken,
         "Zoho returned no refresh token. Check that the consent url carried access_type=offline.",
       );
     }
@@ -126,14 +130,17 @@ export class ZohoAccounts {
   }
 
   /** Mints an access token from a stored refresh token. */
-  async refresh(refreshToken: string): Promise<ZohoAccessToken> {
-    const payload = await this.requestToken({
+  static async refresh(
+    credentials: ZohoCredentials,
+    refreshToken: string,
+  ): Promise<ZohoAccessToken> {
+    const payload = await ZohoAccounts.requestToken(credentials, {
       grant_type: "refresh_token",
       refresh_token: refreshToken,
     });
     if (payload.access_token === undefined) {
       throw new ZohoAuthError(
-        ZohoAuthCode.MissingAccessToken,
+        ZohoAuthErrorCode.MissingAccessToken,
         "Zoho returned no access token.",
       );
     }
@@ -145,16 +152,18 @@ export class ZohoAccounts {
 
   /** A URLSearchParams body reaches the wire untouched as form-urlencoded. Passing an
    *  object instead would serialize it as JSON, which this endpoint rejects. */
-  private async requestToken(
+  private static async requestToken(
+    credentials: ZohoCredentials,
     fields: Record<string, string>,
   ): Promise<ZohoTokenPayload> {
     const form = new URLSearchParams({
       ...fields,
-      client_id: this.credentials.clientId,
-      client_secret: this.credentials.clientSecret,
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
     });
+    const client = new HttpClient({ baseUrl: credentials.accountsUrl });
     try {
-      const { body } = await this.client.post(TOKEN_PATH, form);
+      const { body } = await client.post(TOKEN_PATH, form);
       return toPayload(await body.json());
     } catch (cause) {
       if (cause instanceof HttpRequestError) {
@@ -162,9 +171,5 @@ export class ZohoAccounts {
       }
       throw cause;
     }
-  }
-
-  static create(credentials: ZohoCredentials): ZohoAccounts {
-    return new ZohoAccounts(credentials);
   }
 }

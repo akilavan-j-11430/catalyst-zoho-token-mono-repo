@@ -35,7 +35,10 @@ import { Cache } from "@/services/catalyst/cache";
 import { Job } from "@/services/catalyst/job";
 import { Table } from "@/services/catalyst/table";
 
-export const todoTable = Table.create("todo");
+export const todoTable = Table.create<{
+  TITLE: string;
+  NOTES?: string;
+}>("Todo");
 export const invoiceBucket = Bucket.create("invoices");
 export const sessionCache = Cache.create();
 export const reminderJob = Job.create<{ todoId: string }>({
@@ -64,7 +67,7 @@ The four factories differ, because the resources do:
 
 | Factory | Argument |
 |---|---|
-| `Table.create("todo")` | the table name |
+| `Table.create<Row>("Todo")` | the table name, where `Row` declares its columns - see below |
 | `Bucket.create("invoices")` | the bucket name |
 | `Cache.create()` | a segment **id**, not a name - omit it for the project default segment |
 | `Job.create<T>({ jobName, aliasName, jobPoolName, jobTargetFunctionName })` | a config object, where `T` types the job's params and `aliasName` may not exceed 20 characters |
@@ -104,6 +107,40 @@ await nightlyReportJob.submitOneTimeCron({ timeOfExecution: runAt, cronName: "ni
 
 The generic decides which, so the two cannot be confused: passing a payload to a void job,
 or omitting one from a typed job, is a compile error.
+
+### Declaring a table's row
+
+`Row` is an object type keyed by the Catalyst column names - `REFERENCE_ID`, not
+`referenceId` - written inline in `create`, and it is the only place a table's columns are
+written down. Name it as an exported interface beside the handle only when a second caller
+needs the type itself. Everything else is derived from it:
+
+| Call | Takes | Returns |
+|---|---|---|
+| `insertRow` / `insertRows` | `Row` | `StoredRow<Row>` |
+| `updateRow` / `updateRows` | `RowUpdate<Row>` - any subset of `Row`, plus `ROWID` | `StoredRow<Row>` |
+| `getRow` / `getPagedRows` | a `ROWID` / a page token | `StoredRow<Row>` |
+
+- **A non-optional property is a mandatory column.** Leaving it out of an insert is a
+  compile error; an optional property (`NOTES?`) may be left out.
+- **A key `Row` does not declare is a compile error** in an object literal.
+- `StoredRow<Row>` adds the four system columns every table carries - `ROWID`, `CREATORID`,
+  `CREATEDTIME`, `MODIFIEDTIME`, all strings - and types an optional column as `T | null`,
+  because Catalyst returns an unset column as `null`, not as a missing key.
+- `create`'s generic defaults to `never`, so a handle declared without its row accepts no
+  row at all rather than any row.
+
+ZCQL names columns through the handle, so a typo is a compile error there too:
+
+```ts
+const table = todoTable;
+`SELECT COUNT(${table.column("ROWID")}) FROM ${table.name}`             // COUNT(ROWID)
+`SELECT COUNT(${table.qualifiedColumn("ROWID")}) FROM ${table.name}`    // COUNT(Todo.ROWID)
+rows[0]?.[table.column("TITLE")]                                        // read a result
+```
+
+Use `qualifiedColumn` once a query joins a second table. A ZCQL result is still `ZcqlRow`
+(`Record<string, unknown>`) - a query picks its own columns, so no row type describes it.
 
 `Zcql` is the exception and has no handle. A query joins across tables and belongs to no
 single one, so it is static and starts from `runIn` -

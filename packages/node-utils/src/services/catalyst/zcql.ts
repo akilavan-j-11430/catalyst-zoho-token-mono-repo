@@ -3,9 +3,11 @@ import { CatalystError } from "@/errors/catalyst-error";
 import { Datastore } from "@zcatalyst/datastore";
 import type { CatalystScope } from "@/enums/catalyst-scope";
 import { currentContext } from "@/framework/async-context";
-import type { TableRow } from "@/services/catalyst/table";
 
 type ZCQLResult = Awaited<ReturnType<Datastore["executeZCQLQuery"]>>;
+
+/** A ZCQL result row. A query picks its own columns, so no table's row type describes it. */
+export type ZcqlRow = Record<string, unknown>;
 
 /** Fresh per call. The app is per-request and carries the caller's credentials,
  *  so a service must never be hoisted to module scope.
@@ -21,12 +23,12 @@ async function run(
   mode: string,
   query: string,
   call: (client: Datastore) => Promise<ZCQLResult>,
-): Promise<TableRow[]> {
+): Promise<ZcqlRow[]> {
   try {
     const result = await call(datastore(scope));
     // ZCQL wraps every row as { TableName: { ...columns } }; callers want the columns.
     return result.map(
-      (row) => Object.assign({}, ...Object.values(row)) as TableRow,
+      (row) => Object.assign({}, ...Object.values(row)) as ZcqlRow,
     );
   } catch (cause) {
     throw new CatalystError(
@@ -42,14 +44,14 @@ class ScopedZcql {
   constructor(private readonly scope: CatalystScope) {}
 
   /** Runs a ZCQL statement and returns rows flattened out of their table wrapper. */
-  executeQuery(query: string): Promise<TableRow[]> {
+  executeQuery(query: string): Promise<ZcqlRow[]> {
     return run(this.scope, "query", query, (client) =>
       client.executeZCQLQuery(query),
     );
   }
 
   /** Same, in OLAP mode - the analytical engine, for aggregates over large scans. */
-  executeOlapQuery(query: string): Promise<TableRow[]> {
+  executeOlapQuery(query: string): Promise<ZcqlRow[]> {
     return run(this.scope, "olap query", query, (client) =>
       client.executeOLAPQuery(query),
     );

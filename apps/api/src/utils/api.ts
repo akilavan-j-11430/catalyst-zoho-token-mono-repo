@@ -27,10 +27,9 @@ export function toPagedResponse<T>(
 }
 
 export function toRecordResponse<T>(data: T): RecordResponse<T> {
-  return { data,status: "success" };
+  return { data, status: "success" };
 }
 
 export function toErrorResponse(message: string): ErrorResponse {
   return { status: "error", message };
 }
-

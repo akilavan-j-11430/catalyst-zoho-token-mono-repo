@@ -1,8 +1,7 @@
 # Catalyst SDK access
 
 Every Catalyst SDK call goes through `packages/node-utils/src/services/catalyst/`. No
-`@zcatalyst/*` package may be imported anywhere else. ESLint enforces it; the only other
-exemption is `framework/async-context.ts`, which carries the app's type across the request.
+`@zcatalyst/*` package may be imported anywhere else, and ESLint enforces it.
 
 One file per component - `bucket.ts`, `table.ts`, `zcql.ts`, `cache.ts`, `job.ts` - plus
 `resources.ts`, which names the resources. Each component builds the SDK client
@@ -12,10 +11,11 @@ app nowhere else:
 ```ts
 // packages/node-utils/src/services/catalyst/bucket.ts
 import { Stratus } from "@zcatalyst/stratus";
+import type { CatalystScope } from "@/enums/catalyst-scope";
 import { currentContext } from "@/framework/async-context";
 
-function stratus(): Stratus {
-  return new Stratus(currentContext().manager.catalyst);
+function stratus(scope: CatalystScope): Stratus {
+  return new Stratus(currentContext().manager.catalyst.getApp(scope));
 }
 ```
 
@@ -35,7 +35,10 @@ import { Cache } from "@/services/catalyst/cache";
 import { Job } from "@/services/catalyst/job";
 import { Table } from "@/services/catalyst/table";
 
-export const todoTable = Table.create("todo");
+export const todoTable = Table.create<{
+  TITLE: string;
+  NOTES?: string;
+}>("Todo");
 export const invoiceBucket = Bucket.create("invoices");
 export const sessionCache = Cache.create();
 export const reminderJob = Job.create<{ todoId: string }>({
@@ -51,9 +54,10 @@ is the only seam. Import the handle wherever it is needed, and never declare a s
 for a resource that already has one:
 
 ```ts
+import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
 import { todoTable } from "@repo/node-utils/services/catalyst/resources";
 
-const todo = await todoTable.getRow(rowId);
+const todo = await todoTable.runIn(CatalystScope.User).getRow(rowId);
 ```
 
 It lives here rather than in an app because `apps/api` is one AppSail among however many a
@@ -63,7 +67,7 @@ The four factories differ, because the resources do:
 
 | Factory | Argument |
 |---|---|
-| `Table.create("todo")` | the table name |
+| `Table.create<Row>("Todo")` | the table name, where `Row` declares its columns - see below |
 | `Bucket.create("invoices")` | the bucket name |
 | `Cache.create()` | a segment **id**, not a name - omit it for the project default segment |
 | `Job.create<T>({ jobName, aliasName, jobPoolName, jobTargetFunctionName })` | a config object, where `T` types the job's params and `aliasName` may not exceed 20 characters |
@@ -104,13 +108,47 @@ await nightlyReportJob.submitOneTimeCron({ timeOfExecution: runAt, cronName: "ni
 The generic decides which, so the two cannot be confused: passing a payload to a void job,
 or omitting one from a typed job, is a compile error.
 
+### Declaring a table's row
+
+`Row` is an object type keyed by the Catalyst column names - `REFERENCE_ID`, not
+`referenceId` - written inline in `create`, and it is the only place a table's columns are
+written down. Name it as an exported interface beside the handle only when a second caller
+needs the type itself. Everything else is derived from it:
+
+| Call | Takes | Returns |
+|---|---|---|
+| `insertRow` / `insertRows` | `Row` | `StoredRow<Row>` |
+| `updateRow` / `updateRows` | `RowUpdate<Row>` - any subset of `Row`, plus `ROWID` | `StoredRow<Row>` |
+| `getRow` / `getPagedRows` | a `ROWID` / a page token | `StoredRow<Row>` |
+
+- **A non-optional property is a mandatory column.** Leaving it out of an insert is a
+  compile error; an optional property (`NOTES?`) may be left out.
+- **A key `Row` does not declare is a compile error** in an object literal.
+- `StoredRow<Row>` adds the four system columns every table carries - `ROWID`, `CREATORID`,
+  `CREATEDTIME`, `MODIFIEDTIME`, all strings - and types an optional column as `T | null`,
+  because Catalyst returns an unset column as `null`, not as a missing key.
+- `create`'s generic defaults to `never`, so a handle declared without its row accepts no
+  row at all rather than any row.
+
+ZCQL names columns through the handle, so a typo is a compile error there too:
+
+```ts
+const table = todoTable;
+`SELECT COUNT(${table.column("ROWID")}) FROM ${table.name}`             // COUNT(ROWID)
+`SELECT COUNT(${table.qualifiedColumn("ROWID")}) FROM ${table.name}`    // COUNT(Todo.ROWID)
+rows[0]?.[table.column("TITLE")]                                        // read a result
+```
+
+Use `qualifiedColumn` once a query joins a second table. A ZCQL result is still `ZcqlRow`
+(`Record<string, unknown>`) - a query picks its own columns, so no row type describes it.
+
 `Zcql` is the exception and has no handle. A query joins across tables and belongs to no
-single one, so it is static and called directly - `Zcql.executeQuery("SELECT ...")`.
+single one, so it is static and starts from `runIn` -
+`Zcql.runIn(CatalystScope.User).executeQuery("SELECT ...")`.
 
 `resources.ts` exists and declares two: `zohoConnectionTable` for the `ZohoConnection` table
-and `zohoConnectionCache` for the project's default cache segment. Note the segment carries two
-kinds of entry - minted access tokens and OAuth state - told apart by a key prefix rather than
-by a second handle, because they are one Catalyst resource.
+and `zohoConnectionCache` for the project's default cache segment, which holds minted Zoho access
+tokens. The OAuth consent state is signed, not stored, so it costs no cache call.
 
 ## A handle is hoisted, a client is not
 
@@ -127,6 +165,69 @@ another user's data.
 That is why every accessor is a function and every method calls it again, and it is what
 makes the handle safe to hoist. Nothing structural enforces it - the accessors live in five
 files - so check it when reviewing a wrapper.
+
+## One app per scope
+
+User scope covers only the methods the browser SDK exposes
+(https://docs.catalyst.zoho.com/en/sdk/javascript/v1/webpack-bundler/#browser-supported-javascript-methods);
+everything else needs Admin. So the context carries a `Catalyst` (`catalyst.ts`) holding one
+app per `CatalystScope`, and `initExecutionContext` builds every scope from the request's
+headers. A scope that cannot be built - User, when the request carries no signed-in user -
+is left unset, and `getApp(scope)` throws `CatalystError` with `SCOPE_UNAVAILABLE` only when
+something asks for it.
+
+Use User unless the method is missing from the browser list. Cache is admin-only.
+
+**Table, Bucket and Zcql take the scope at the call site, never in `resources.ts`.** A handle
+holds a name and exposes only `runIn(scope)`, which returns the scoped operations
+(`ScopedTable`, `ScopedBucket`, `ScopedZcql`). Skipping it is a compile error, not a
+default, so every call names whose credentials it uses:
+
+```ts
+await zohoConnectionTable.runIn(CatalystScope.User).insertRow(row);
+await Zcql.runIn(CatalystScope.Admin).executeQuery("SELECT ...");
+```
+
+`runIn` returns a new object and never mutates the handle. The handle is a module-level
+singleton shared by every request, so a scope stored on it would leak across concurrent
+requests. A method that makes no Catalyst call - `Bucket.buildKey` - stays on the handle.
+The scoped classes are exported as types only, so `runIn` is the only way to build one.
+
+**Never construct an SDK client without an app.** `new CacheClient()` does not fail: the SDK
+falls back to a module-level default holding whichever request called `zcAuth.init` last,
+and switches that request's credential to admin while it is still in flight.
+
+## Fewest calls
+
+Every Catalyst call is a network round trip, billed and rate-limited. **A solution makes
+the fewest calls that answer the question**, and a review asks how many each path makes.
+
+- **One statement, not read-then-act.** Delete or update by the column you already have,
+  in a single ZCQL statement, rather than selecting the ROWID first:
+
+  ```ts
+  await Zcql.runIn(CatalystScope.Admin).executeQuery(
+    `DELETE FROM ${table.name} WHERE ${table.column("REFERENCE_ID")} = '${referenceId}'`,
+  );
+  ```
+
+  ZCQL answers `DELETE` with `DELETED_ROWS_COUNT`, so the statement also says whether
+  anything was there.
+- **No existence check before a read that already reports absence.** If the read throws
+  or returns nothing when the row is missing, that is the check - asking twice costs a
+  second round trip and can disagree with the first.
+- **Select only the columns you use, and `LIMIT` what you expect one of.**
+- **Bulk over loops.** `insertRows`, `updateRows` and `deleteRows` take an array; a loop of
+  single-row calls is N round trips for one change.
+- **Read once per execution.** Something every call in a request needs - the caller, a
+  configuration row - is read once and kept in the execution extras
+  (`manager.setExtras`), the way `currentUserGrant` remembers the caller.
+- **Cache before Catalyst Cache.** A value safe to keep across requests sits in an
+  in-process LRU first, so a hit costs no call at all; Catalyst Cache is the fallback
+  shared across instances. `ZohoConnection`'s minted tokens are the worked example.
+
+A path that has to make several calls should say so in a comment, so the next reader
+does not "optimise" a call that is load-bearing.
 
 ## Writing a wrapper
 
@@ -155,13 +256,13 @@ each arrived because something needed it. Add the next one the same way, followi
 rules above, and call it from the route:
 
 ```ts
-// packages/node-utils/src/services/catalyst/bucket.ts
+// packages/node-utils/src/services/catalyst/bucket.ts - on ScopedBucket
 async copyObject(sourceKey: string, targetKey: string): Promise<void> {
   ...
 }
 
 // apps/api/src/routes/invoice.ts
-await invoiceBucket.copyObject(draftKey, finalKey);
+await invoiceBucket.runIn(CatalystScope.User).copyObject(draftKey, finalKey);
 ```
 
 A method that turns out to be single-use is still the right shape. It costs one small

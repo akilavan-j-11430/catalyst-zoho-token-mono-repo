@@ -5,6 +5,8 @@ import {
   ZohoAuthError,
 } from "@/errors/zoho-auth-error";
 import { HttpClient } from "@/http/http-client";
+import type { ResponseBody } from "@/types/http";
+import { PLimit } from "@/utils/p-limit";
 
 /** What identifies this application to Zoho. Supplied by the app that owns the keys. */
 export interface ZohoCredentials {
@@ -34,9 +36,11 @@ interface ZohoTokenPayload {
   error?: string;
 }
 
-const AUTH_PATH = "/oauth/v2/auth";
-const TOKEN_PATH = "/oauth/v2/token";
 const DEFAULT_EXPIRY_SECONDS = 3600;
+/** Zoho throttles the accounts server; one instance never holds more open than this. */
+const MAX_CONCURRENT_REQUESTS = 10;
+
+const accountsRequests = new PLimit(MAX_CONCURRENT_REQUESTS);
 
 /** Zoho answers a refused grant with HTTP 200 and an `error` key, so the client's non-2xx
  *  check never fires and the body has to be read. */
@@ -92,7 +96,7 @@ export class ZohoAccounts {
     redirectUri: string,
     state: string,
   ): string {
-    const url = new URL(AUTH_PATH, credentials.accountsUrl);
+    const url = new URL("/oauth/v2/auth", credentials.accountsUrl);
     url.searchParams.set("scope", scopes.join(","));
     url.searchParams.set("client_id", credentials.clientId);
     url.searchParams.set("response_type", "code");
@@ -150,8 +154,20 @@ export class ZohoAccounts {
     };
   }
 
-  /** A URLSearchParams body reaches the wire untouched as form-urlencoded. Passing an
-   *  object instead would serialize it as JSON, which this endpoint rejects. */
+  /** Ends a grant at Zoho, so the refresh token stops minting anywhere. The token goes in
+   *  the body rather than the query Zoho documents, because the client logs every url. */
+  static async revoke(
+    credentials: ZohoCredentials,
+    refreshToken: string,
+  ): Promise<void> {
+    await ZohoAccounts.send(
+      credentials,
+      "/oauth/v2/token/revoke",
+      new URLSearchParams({ token: refreshToken }),
+      async () => undefined,
+    );
+  }
+
   private static async requestToken(
     credentials: ZohoCredentials,
     fields: Record<string, string>,
@@ -161,10 +177,27 @@ export class ZohoAccounts {
       client_id: credentials.clientId,
       client_secret: credentials.clientSecret,
     });
+    return ZohoAccounts.send(
+      credentials,
+      "/oauth/v2/token",
+      form,
+      async (body) => toPayload(await body.json()),
+    );
+  }
+
+  /** A URLSearchParams body reaches the wire untouched as form-urlencoded. Passing an
+   *  object instead would serialize it as JSON, which these endpoints reject. `read` runs
+   *  inside the same catch, so a body that fails to decode is mapped like any failure. */
+  private static async send<T>(
+    credentials: ZohoCredentials,
+    path: string,
+    form: URLSearchParams,
+    read: (body: ResponseBody) => Promise<T>,
+  ): Promise<T> {
     const client = new HttpClient({ baseUrl: credentials.accountsUrl });
     try {
-      const { body } = await client.post(TOKEN_PATH, form);
-      return toPayload(await body.json());
+      const { body } = await accountsRequests.run(() => client.post(path, form));
+      return await read(body);
     } catch (cause) {
       if (cause instanceof HttpRequestError) {
         throw toAuthError(cause);

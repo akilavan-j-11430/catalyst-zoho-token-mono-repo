@@ -1,4 +1,5 @@
 import type { ErrorResponse, RecordResponse } from "@repo/types/api";
+import { ApiPath } from "@repo/routing/api-path";
 import {
   HttpMethod,
   type HeaderResolver,
@@ -216,6 +217,12 @@ export class ApiClient {
     return this.send(HttpMethod.Delete, path, undefined, options);
   }
 
+  /** The address a call to `path` would go to, for a route the browser navigates to
+   *  rather than fetches - one that answers with a redirect to another site. */
+  url(path: string, query?: Record<string, QueryValue>): string {
+    return this.resolveUrl(path, query);
+  }
+
   private async send(
     method: HttpMethod,
     path: string,
@@ -292,4 +299,4 @@ export async function recordOf<T>(response: ApiResponse): Promise<T> {
  * One instance for `apps/api`. The prefix lives here rather than on every path, and stays
  * relative so the proxy keeps the browser and the API on one origin.
  */
-export const api = new ApiClient({ baseUrl: "/api" });
+export const api = new ApiClient({ baseUrl: ApiPath.Api + ApiPath.V1 });

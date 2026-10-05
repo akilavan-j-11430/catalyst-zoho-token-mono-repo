@@ -11,9 +11,12 @@ Port: `X_ZOHO_CATALYST_LISTEN_PORT`, else `PORT`, else **8000**.
 src/
 |-- index.ts              app setup, middleware order, route mounting
 |-- env.ts                every environment variable this app reads
+|-- zoho-connections.ts   the app's one ZohoConnection, built from env - see .claude/rules/zoho-token.md
 |-- middleware.ts         execution context, request timing, terminal error handler
+|-- routes/api-router.ts  the only place a router mounts
 |-- routes/ping.ts        reference route - copy this shape
 |-- routes/auth.ts        POST /auth/register - registers a Catalyst app user
+|-- routes/zoho-token.ts  GET connect, callback, status; POST disconnect
 |-- errors/http-error.ts  typed failures that map to HTTP statuses
 |-- utils/api.ts          response builders
 `-- framework/catalyst-logger.ts   console -> Catalyst log pipe, imported for side effect
@@ -29,53 +32,62 @@ From `src/index.ts`, and the order is load-bearing:
 
 1. `express.json()`
 2. `/api` -> `initExecutionContext`, then `recordRequestTiming`
-3. `/api` -> `apiRouter` (`src/routes/api-router.ts`), which holds every route
+3. `/api/v1` -> `apiRouter` (`src/routes/api-router.ts`), which holds every route
 4. `/` -> JSON 404 catch-all
 5. `errorHandler` (terminal)
 
 `index.ts` mounts one router, and `api-router.ts` composes the rest, so a new route
 cannot land below the catch-all and quietly 404. Add it there, not here.
 
+Every path segment is a constant in `ApiPath` (`@repo/routing/api-path`), shared with
+`apps/web`; a full path is their concatenation, `ApiPath.Api + ApiPath.V1`.
+`api-router.ts` mounts each router under its own segment -
+`apiRouter.use(ApiPath.ZohoToken, zohoTokenRouter)` - and the router names only what
+follows it, `ApiPath.Callback`. So a router-level `use`, like the `validateUserAuthentication` on `zohoTokenRouter`, covers
+that router's routes and nothing else.
+
 ## Execution context
 
-`initExecutionContext` (`src/middleware.ts`) awaits `zcAuth.init(req)` from
-`@zcatalyst/auth` and runs the rest of the chain inside `runWithContext`. Catalyst reads the
-project details and the caller's credentials off the request headers, so the app is
-per-request and nothing needs configuring in the environment.
+`initExecutionContext` (`src/middleware.ts`) calls `zcAuth.init(req, { scope })` from
+`@zcatalyst/auth` once per `CatalystScope` and runs the rest of the chain inside
+`runWithContext`. Catalyst reads the project details and the caller's credentials off the
+request headers, so the apps are per-request and nothing needs configuring in the
+environment.
 
-Two things about that call are easy to get wrong:
+Three things about that call are easy to get wrong:
 
 - **It is async.** The node facade loads its implementation through a dynamic import, so
   `init` returns a promise. Unawaited, that promise is truthy, reaches the SDK intact and
   only fails later as `app.credential.getToken is not a function`.
-- **No scope is passed, and that is deliberate.** The app follows whatever the caller
-  presents, so a handler acts as the signed-in user and `getCurrentUser()` identifies them.
-  Pass `{ scope: "admin" }` and it acts as the application instead: `getCurrentUser()` can no
-  longer say who is calling, and App User table permissions stop applying to anything this
-  API does.
-
-  The price is that a request carrying neither a user token nor a cookie is rejected here
-  with `missing user credentials`, before any route runs. `POST /api/auth/register` is
-  therefore reachable only by someone already signed in - it registers a second user, not the
-  first. A route that needs to serve anonymous callers cannot sit behind this middleware.
+- **User and Admin are different apps.** A user-scope app acts as the signed-in caller, so
+  `getCurrentUser()` identifies them and App User table permissions apply. An admin-scope
+  app acts as the application. The wrapper picks which one it reads with
+  `manager.catalyst.getApp(scope)`.
+- **A failed scope does not fail the request.** A request with neither a user token nor a
+  cookie cannot build the User app (`missing user credentials`). That scope is left unset
+  and logged, and `getApp(CatalystScope.User)` throws `CatalystError` (`SCOPE_UNAVAILABLE`)
+  only if something asks for it. `validateUserAuthentication` turns that into a 401.
 
 This is why requests must arrive through `catalyst serve` - only the CLI injects those
-headers. Bypass it and `zcAuth.init` throws `app/invalid_project_details`, which
-`errorHandler` renders as a generic 500. If every `/api` route is 500ing in dev, that is
+headers. Bypass it and every scope's `zcAuth.init` fails with `app/invalid_project_details`
+(logged by `initExecutionContext`), so the first Catalyst call throws `SCOPE_UNAVAILABLE`,
+which `errorHandler` renders as a generic 500. If every `/api` route is 500ing in dev, that is
 the cause, not your handler.
 
 Handlers must **not** initialize Catalyst themselves, and must not reach for the app at
-all. Import a resource handle - it reads the app off the context for you:
+all. Import a resource handle and pick the scope with `runIn` - it reads that scope's app
+off the context for you:
 
 ```ts
+import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
 import { todoTable } from "@repo/node-utils/services/catalyst/resources";
 
-const todo = await todoTable.getRow(rowId);
+const todo = await todoTable.runIn(CatalystScope.User).getRow(rowId);
 ```
 
 Handles are declared once in `packages/node-utils/src/services/catalyst/resources.ts`,
 never in a route. `Zcql` is the exception: a query belongs to no single table, so it is
-static - `Zcql.executeQuery("SELECT ...")`.
+static - `Zcql.runIn(CatalystScope.User).executeQuery("SELECT ...")`.
 
 If a handle cannot do what the route needs, **add the method to the wrapper** rather than
 reaching for the SDK here. A single-use method is still the right shape.
@@ -93,16 +105,19 @@ reach `errorHandler` as a 500. `.claude/rules/catalyst-sdk.md` is the full rule.
 
 ```ts
 import { Router } from "express";
+import { ApiPath } from "@repo/routing/api-path";
 import { toRecordResponse } from "@/utils/api";
 
 export const pingRouter: Router = Router();
 
-pingRouter.get("/ping", (_req, res) => {
+pingRouter.get(ApiPath.Ping, (_req, res) => {
   res.json(toRecordResponse({ message: "pong" }));
 });
 ```
 
-Then add one line to `src/routes/api-router.ts` - `apiRouter.use(pingRouter)`. The `: Router`
+Add any new segment to `ApiPath` first, never as a string literal. Then add one line to
+`src/routes/api-router.ts` - `apiRouter.use(ApiPath.Auth, authRouter)` for a router with a
+prefix; `ping` is a single route, so it mounts bare and names `ApiPath.Ping` itself. The `: Router`
 annotation is not optional: the declaration emit cannot infer the type across the package
 boundary without it.
 

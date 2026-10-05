@@ -1,11 +1,10 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { Catalyst } from "@/services/catalyst/catalyst";
 import { RuntimeError } from "@/errors/runtime-error";
-
 
 /** Per-request values carried on the execution context. */
 export interface ExecutionInfo {
-  /** Catalyst app built from the request credentials. */
-  catalyst: unknown;
+  catalyst: Catalyst;
   executionId: string;
   /** Any other values that need to be carried through the request. */
   extras: Record<string, unknown>;
@@ -22,12 +21,8 @@ class ExecutionManager {
     return this.values.executionId;
   }
 
-  get catalyst(): unknown {
+  get catalyst(): Catalyst {
     return this.values.catalyst;
-  }
-
-  set catalyst(value: unknown) {
-    this.values.catalyst = value;
   }
 
   getExtras<T>(key: string): T | undefined {

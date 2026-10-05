@@ -17,7 +17,7 @@ running full-stack application in a few minutes.
 - A **Turborepo pipeline** so builds are cached and ordered correctly, plus one-command
   bundle and deploy.
 
-- A **Zoho OAuth connection** at `/api/zoho-token/*`: the authorization-code redirect
+- A **Zoho OAuth connection** at `/api/v1/zoho-token/*`: the authorization-code redirect
   flow with CSRF state, the refresh token stored in a Data Store table this repo owns,
   and the access token minted on demand behind an in-memory LRU over Catalyst Cache.
   Credentials live in `.env`, never in a committed Catalyst file.
@@ -117,10 +117,12 @@ this repo deploys (two AppSails and one Slate app) and is the same for everybody
 
 ```bash
 cp .env.example .env
+cp apps/api/.env.example apps/api/.env
 ```
 
-The root `.env` is shared by every app. App-specific values go in `apps/<app>/.env`.
-Both are gitignored; the `.env.example` files are committed.
+The root `.env` is shared by every app. App-specific values go in `apps/<app>/.env`,
+each with its own `apps/<app>/.env.example`. The `.env` files are gitignored; the
+`.env.example` files are committed.
 
 Platform values, read by the Catalyst CLI and SDK rather than by this repo's code:
 
@@ -177,7 +179,7 @@ both the page and the API. You should get the Next.js starter page.
 Confirm the API is wired up too, substituting the port you were given:
 
 ```bash
-curl http://localhost:3001/api/ping
+curl http://localhost:3001/api/v1/ping
 # {"data":{"message":"pong"},"status":"success"}
 ```
 
@@ -189,7 +191,7 @@ the shape for your own.
 An unknown path returns the matching error envelope:
 
 ```bash
-curl http://localhost:3001/api/nope
+curl http://localhost:3001/api/v1/nope
 # {"status":"error","message":"The requested url does not exist."}
 ```
 
@@ -204,6 +206,7 @@ curl http://localhost:3001/api/nope
 |   |-- api/            Express API     -> AppSail "api"    :8000
 |   `-- web/            Next.js app     -> Slate "web"      :4000
 |-- packages/
+|   |-- routing/            @repo/routing            route path segments
 |   |-- types/              @repo/types              shared API response shapes
 |   |-- node-utils/         @repo/node-utils         execution context, logger, errors
 |   |-- typescript-config/  @repo/typescript-config  base tsconfig
@@ -220,6 +223,7 @@ curl http://localhost:3001/api/nope
 | `apps/proxy` | Local development only. Routes `/api` to the API and everything else to the web app, including WebSocket upgrades for HMR. Enforces Catalyst login. Never deployed. |
 | `apps/api` | Express API. Establishes a per-request execution context holding the Catalyst app, times requests, and maps typed errors to HTTP statuses. |
 | `apps/web` | Next.js frontend. Calls the API with relative `/api/...` paths. |
+| `@repo/routing` | `ApiPath` segments, combined with `+` - the API mounts them and the web app calls them, so no path is a string literal in either. |
 | `@repo/types` | `RecordResponse`, `PagedRecordResponse`, `ErrorResponse` - imported by both the API and the web app so the contract is written once. |
 | `@repo/node-utils` | `ExecutionContext` over `AsyncLocalStorage`, a `logger` that stamps execution IDs, `RuntimeError`, `env`, `HttpClient`, and the Catalyst wrappers plus the resource handles built from them. |
 | `@repo/typescript-config` | `base.json`. Strict mode, `noUncheckedIndexedAccess`, ES2022. Every other tsconfig extends it. |
@@ -300,7 +304,7 @@ cloud. Deploying it would put a redundant hop in front of your app.
 what the deployed app needs in **Console -> AppSail -> api -> Configuration ->
 Environment Variables** before the first deploy that needs it, and remember that the
 Development and Production environments are configured separately. `AUTH_REDIRECT_URL`
-is required by `POST /api/auth/register`; without it that route fails with a
+is required by `POST /api/v1/auth/register`; without it that route fails with a
 `RuntimeError` naming the variable.
 
 **Environments.** Catalyst projects have a Development and a Production environment,
@@ -419,9 +423,9 @@ apps that still have a bundle script. Delete the directory and re-run `pnpm bund
 this clone, so there is no `.catalystrc`. It is gitignored by design; every developer
 runs it once.
 
-**`.env not found. Continuing without it.`** - harmless. The API looks for both the
-root `.env` and an optional `apps/api/.env`; the message is the latter, which most
-setups do not need.
+**`.env not found. Continuing without it.`** - the API looks for both the root `.env`
+and `apps/api/.env`, and one of them is missing. The api's own keys live in
+`apps/api/.env`, so if that is the one, copy `apps/api/.env.example` across.
 
 **Authentication works in Development but breaks in Production** - the ZAID differs
 per environment. Check which environment `.catalystrc` has active.

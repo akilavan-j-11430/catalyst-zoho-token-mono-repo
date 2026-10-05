@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { ApiPath } from "@repo/routing/api-path";
 import { UserManagement } from "@repo/node-utils/services/catalyst/user-management";
 import type { NewUser } from "@repo/types/user";
 import { env } from "@/env";
@@ -33,7 +34,7 @@ function toNewUser(body: unknown): NewUser {
 
 export const authRouter: Router = Router();
 
-authRouter.post("/auth/register", async (req, res) => {
+authRouter.post(ApiPath.Register, async (req, res) => {
   const user = toNewUser(req.body);
   const registered = await UserManagement.register(
     user,

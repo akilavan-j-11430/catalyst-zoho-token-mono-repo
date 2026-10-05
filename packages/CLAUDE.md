@@ -4,8 +4,9 @@ Shared code for the monorepo. All four are private and consumed as `"workspace:*
 
 | Package | Holds |
 |---|---|
+| `@repo/routing` | API path segments (`ApiPath`) shared by `apps/api` and `apps/web` |
 | `@repo/types` | API response shapes shared by `apps/api` and `apps/web` |
-| `@repo/node-utils` | `ExecutionContext`, `logger`, `env`, `RuntimeError`, `HttpClient`, and the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user-management`) plus the resource handles built from them |
+| `@repo/node-utils` | `ExecutionContext`, `logger`, `env`, `RuntimeError`, `HttpClient`, `PLimit`, `PLimitPerKey`, and the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user-management`) plus the resource handles built from them |
 | `@repo/typescript-config` | `base.json` that every tsconfig extends |
 | `@repo/eslint-config` | flat ESLint config - currently unwired |
 
@@ -40,8 +41,7 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 - **Keep them framework-free.** Both an Express app and a Next.js app import these.
   No `express`, no `react`, no Next.js imports.
 - **`node-utils/src/services/catalyst/` is the only directory that may import a Catalyst
-  SDK.** ESLint enforces it; `framework/async-context.ts` is the one other exemption, and
-  only to carry the app's type. See `.claude/rules/catalyst-sdk.md`.
+  SDK.** ESLint enforces it. See `.claude/rules/catalyst-sdk.md`.
 - **Catalyst resources are declared once, in `services/catalyst/resources.ts`** - one
   `export const` per table, bucket, cache segment and job, built with the wrapper's
   `create` factory. Apps import the handle; they never construct a wrapper themselves.
@@ -63,7 +63,7 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
   `defineEnv<T>()`, which is generic and names no variable; each app declares what it
   reads in its own `src/env.ts`. A package that needs a configured value **takes it as a
   parameter** - `UserManagement.register(user, redirectUrl)`, `setLogTimeZone(zone)`,
-  `ZohoConnection.setCredentials(credentials)` - so
+  `ZohoConnection.create(credentials, grant)` - so
   the app that owns the variable is the one that reads it, and the failure lands where the
   value is used. No file under `packages/` calls `process.env` except the mechanism
   itself. See `.claude/rules/environment.md`.

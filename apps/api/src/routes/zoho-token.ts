@@ -1,12 +1,16 @@
 import { Router } from "express";
+import { ApiPath } from "@repo/routing/api-path";
 import {
   ZohoAuthError,
   ZohoAuthErrorCode,
 } from "@repo/node-utils/errors/zoho-auth-error";
-import { ZohoConnection } from "@repo/node-utils/services/zoho/connection";
+import type { ZohoConnectionStatus } from "@repo/types/zoho-token";
+import { logger } from "@repo/node-utils/framework/logger";
 import { env } from "@/env";
 import { HttpError } from "@/errors/http-error";
 import { toRecordResponse } from "@/utils/api";
+import { validateUserAuthentication } from "@/middleware";
+import { userZohoConnection } from "@/zoho-connections";
 
 /** Failures the user fixes by starting consent again. Every other `ZohoAuthError` -
  *  `invalid_client`, the accounts server unreachable - is ours and stays a 500. */
@@ -17,7 +21,7 @@ const RESTART_CONSENT = new Set<string>([
 
 function zohoScopes(): string[] {
   return env
-    .get("ZOHO_SCOPES")
+    .get("ZOHO_TOKEN_SCOPES")
     .split(",")
     .map((scope) => scope.trim())
     .filter((scope) => scope !== "");
@@ -33,27 +37,41 @@ function requiredQuery(value: unknown, name: string): string {
 /** Zoho matches it exactly against the client's Authorized Redirect URI, so it is sent
  *  identically on consent and on the code exchange. */
 function callbackUri(): string {
-  return new URL("/api/zoho-token/callback", env.get("APP_ORIGIN")).toString();
+  return new URL(
+    ApiPath.Api + ApiPath.V1 + ApiPath.ZohoToken + ApiPath.Callback,
+    env.get("ZOHO_TOKEN_CALLBACK_ORIGIN"),
+  ).toString();
 }
 
-/** Where the browser lands once the connection exists. */
-const APP_HOME = "/";
+/** Where the browser lands once the connection exists - the web app's home page. */
+function webAppHome(): string {
+  return new URL("/", env.get("WEB_APP_ORIGIN")).toString();
+}
 
 export const zohoTokenRouter: Router = Router();
+zohoTokenRouter.use(validateUserAuthentication)
 
-zohoTokenRouter.get("/zoho-token/connect", async (_req, res) => {
-  if (await ZohoConnection.hasToken()) {
-    res.redirect(APP_HOME);
+zohoTokenRouter.get(ApiPath.Connect, async (_req, res) => {
+  if (await userZohoConnection.isConnected()) {
+    res.redirect(webAppHome());
     return;
   }
-  res.redirect(await ZohoConnection.consentUrl(zohoScopes(), callbackUri()));
+  res.redirect(await userZohoConnection.consentUrl(zohoScopes(), callbackUri()));
 });
 
-zohoTokenRouter.get("/zoho-token/callback", async (req, res) => {
+zohoTokenRouter.get(ApiPath.Callback, async (req, res) => {
+  // Zoho sends `error` instead of a code when the user denies consent. Nothing is
+  // stored, so the browser goes home and the user can start again from there.
+  const denied = req.query["error"];
+  if (denied !== undefined) {
+    logger.info(`Zoho consent was not granted: ${String(denied)}`);
+    res.redirect(webAppHome());
+    return;
+  }
   const code = requiredQuery(req.query["code"], "code");
   const state = requiredQuery(req.query["state"], "state");
   try {
-    await ZohoConnection.persistToken(code, state, callbackUri());
+    await userZohoConnection.persistToken(code, state, callbackUri());
   } catch (error) {
     if (error instanceof ZohoAuthError && RESTART_CONSENT.has(error.code)) {
       throw HttpError.BadRequest(
@@ -62,9 +80,18 @@ zohoTokenRouter.get("/zoho-token/callback", async (req, res) => {
     }
     throw error;
   }
-  res.redirect(APP_HOME);
+  res.redirect(webAppHome());
 });
 
-zohoTokenRouter.get("/zoho-token/status", async (_req, res) => {
-  res.json(toRecordResponse({ connected: await ZohoConnection.hasToken() }));
+zohoTokenRouter.get(ApiPath.Status, async (_req, res) => {
+  const status: ZohoConnectionStatus = {
+    connected: await userZohoConnection.isConnected(),
+  };
+  res.json(toRecordResponse(status));
+});
+
+zohoTokenRouter.post(ApiPath.Disconnect, async (_req, res) => {
+  await userZohoConnection.disconnect();
+  const status: ZohoConnectionStatus = { connected: false };
+  res.json(toRecordResponse(status));
 });

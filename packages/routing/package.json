@@ -1,0 +1,30 @@
+{
+  "name": "@repo/routing",
+  "version": "1.0.0",
+  "description": "Route path segments shared by apps/api and apps/web.",
+  "main": "index.js",
+  "type": "module",
+  "private": true,
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "dev": "tsc --build && concurrently -n tsc,alias \"tsc --build --watch --preserveWatchOutput\" \"tsc-alias --watch\"",
+    "build": "tsc --build && tsc-alias",
+    "prepare": "tsc --build && tsc-alias",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint"
+  },
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.5"
+  }
+}

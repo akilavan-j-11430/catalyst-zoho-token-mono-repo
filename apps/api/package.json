@@ -17,6 +17,7 @@
   "type": "commonjs",
   "dependencies": {
     "@repo/node-utils": "workspace:*",
+    "@repo/routing": "workspace:*",
     "@repo/types": "workspace:*",
     "@zcatalyst/auth": "^1.0.0",
     "@zcatalyst/cache": "^1.0.0",

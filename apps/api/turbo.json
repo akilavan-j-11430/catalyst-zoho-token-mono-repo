@@ -1,0 +1,18 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "dev": {
+      "passThroughEnv": [
+        "AUTH_REDIRECT_URL",
+        "TZ",
+        "ZOHO_TOKEN_CLIENT_ID",
+        "ZOHO_TOKEN_CLIENT_SECRET",
+        "ZOHO_TOKEN_SCOPES",
+        "ZOHO_TOKEN_ACCOUNTS_URL",
+        "ZOHO_TOKEN_CALLBACK_ORIGIN",
+        "WEB_APP_ORIGIN"
+      ]
+    }
+  }
+}

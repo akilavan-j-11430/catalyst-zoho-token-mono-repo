@@ -1,7 +1,6 @@
 import "@/framework/catalyst-logger";
 import { setLogTimeZone } from "@repo/node-utils/framework/logger";
 import { ApiPath } from "@repo/routing/api-path";
-import { ZohoConnection } from "@repo/node-utils/services/zoho/connection";
 import { env } from "@/env";
 import {
   errorHandler,
@@ -13,11 +12,6 @@ import { toErrorResponse } from "@/utils/api";
 import express from "express";
 
 setLogTimeZone(env.optional("TZ"));
-ZohoConnection.setCredentials({
-  accountsUrl: env.get("ZOHO_TOKEN_ACCOUNTS_URL"),
-  clientId: env.get("ZOHO_TOKEN_CLIENT_ID"),
-  clientSecret: env.get("ZOHO_TOKEN_CLIENT_SECRET"),
-});
 
 const PORT = Number(
   process.env["X_ZOHO_CATALYST_LISTEN_PORT"] ?? process.env["PORT"] ?? 8000,

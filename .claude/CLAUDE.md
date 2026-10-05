@@ -18,10 +18,11 @@ load the relevant skill (`catalyst-datastore`, `catalyst-authentication`,
 asserting it.
 
 The repo carries exactly one feature: a Zoho OAuth connection, obtained once per
-signed-in Catalyst user and never re-obtained. `/api/v1/zoho-token/{connect,callback,
-status}` in `apps/api`, the refresh token in the `ZohoConnection` table, the access
-token minted on demand and held in an in-memory LRU over Catalyst Cache. The
-services are `packages/node-utils/src/services/zoho/`.
+signed-in Catalyst user and kept until the user disconnects or Zoho rejects it.
+`/api/v1/zoho-token/{connect,callback,status,disconnect}` in `apps/api`, the refresh token
+in the `ZohoConnection` table, the access token minted on demand and held in an
+in-memory LRU over Catalyst Cache. The services are
+`packages/node-utils/src/services/zoho/`; `.claude/rules/zoho-token.md` is how to use them.
 
 Everything else is still bare plumbing, so most other tasks mean adding the *first*
 thing of their kind - the first bucket, the first job, the first shared model. Extend
@@ -158,8 +159,8 @@ runtime does not have.
 Topic rules live one-per-file in `.claude/rules/` and load automatically: `catalyst-sdk.md`
 covers every Catalyst call, `outbound-http.md` every call to a service outside this repo,
 `web-data-access.md` every call the browser makes to our own API and every form that
-collects one, `environment.md` every environment variable, `typography.md` every font.
-Add a file there rather than growing this one, and give it `paths:` frontmatter if it only
+collects one, `environment.md` every environment variable, `zoho-token.md` every Zoho
+access token, `typography.md` every font. Add a file there rather than growing this one, and give it `paths:` frontmatter if it only
 applies to part of the tree.
 
 - `@/*` resolves to `./src/*` in every workspace. Use it instead of `../../`.

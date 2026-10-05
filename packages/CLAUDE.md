@@ -63,7 +63,7 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
   `defineEnv<T>()`, which is generic and names no variable; each app declares what it
   reads in its own `src/env.ts`. A package that needs a configured value **takes it as a
   parameter** - `UserManagement.register(user, redirectUrl)`, `setLogTimeZone(zone)`,
-  `ZohoConnection.setCredentials(credentials)` - so
+  `ZohoConnection.create(credentials, grant)` - so
   the app that owns the variable is the one that reads it, and the failure lands where the
   value is used. No file under `packages/` calls `process.env` except the mechanism
   itself. See `.claude/rules/environment.md`.

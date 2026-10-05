@@ -13,6 +13,7 @@ export const ApiPath = {
   Connect: "/connect",
   Callback: "/callback",
   Status: "/status",
+  Disconnect: "/disconnect",
 } as const;
 
 export type ApiPath = (typeof ApiPath)[keyof typeof ApiPath];

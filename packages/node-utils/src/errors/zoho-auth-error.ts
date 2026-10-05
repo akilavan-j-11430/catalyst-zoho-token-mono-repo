@@ -7,11 +7,12 @@ export const ZohoAuthErrorCode = {
   /** No grant is stored for this reference id. */
   NotConnected: "not_connected",
   InvalidReferenceId: "invalid_reference_id",
-  /** `ZohoConnection.setCredentials` was never called. */
+  /** A bad accounts url, or no grant source set before use. */
   NotConfigured: "not_configured",
   /** The callback's `state` is not the one issued to this user. */
   StateMismatch: "state_mismatch",
-  /** Zoho's own code for a grant code that is expired, already used, or simply wrong. */
+  /** Zoho's own code for a grant code that is expired, already used, or simply wrong -
+   *  and for a refresh token that was revoked or deleted, which it reports the same way. */
   InvalidGrantCode: "invalid_code",
   /** Zoho answered, but with something that is not a JSON object. */
   UnreadableResponse: "unreadable_response",

@@ -147,9 +147,8 @@ single one, so it is static and starts from `runIn` -
 `Zcql.runIn(CatalystScope.User).executeQuery("SELECT ...")`.
 
 `resources.ts` exists and declares two: `zohoConnectionTable` for the `ZohoConnection` table
-and `zohoConnectionCache` for the project's default cache segment. Note the segment carries two
-kinds of entry - minted access tokens and OAuth state - told apart by a key prefix rather than
-by a second handle, because they are one Catalyst resource.
+and `zohoConnectionCache` for the project's default cache segment, which holds minted Zoho access
+tokens. The OAuth consent state is signed, not stored, so it costs no cache call.
 
 ## A handle is hoisted, a client is not
 
@@ -197,6 +196,38 @@ The scoped classes are exported as types only, so `runIn` is the only way to bui
 **Never construct an SDK client without an app.** `new CacheClient()` does not fail: the SDK
 falls back to a module-level default holding whichever request called `zcAuth.init` last,
 and switches that request's credential to admin while it is still in flight.
+
+## Fewest calls
+
+Every Catalyst call is a network round trip, billed and rate-limited. **A solution makes
+the fewest calls that answer the question**, and a review asks how many each path makes.
+
+- **One statement, not read-then-act.** Delete or update by the column you already have,
+  in a single ZCQL statement, rather than selecting the ROWID first:
+
+  ```ts
+  await Zcql.runIn(CatalystScope.Admin).executeQuery(
+    `DELETE FROM ${table.name} WHERE ${table.column("REFERENCE_ID")} = '${referenceId}'`,
+  );
+  ```
+
+  ZCQL answers `DELETE` with `DELETED_ROWS_COUNT`, so the statement also says whether
+  anything was there.
+- **No existence check before a read that already reports absence.** If the read throws
+  or returns nothing when the row is missing, that is the check - asking twice costs a
+  second round trip and can disagree with the first.
+- **Select only the columns you use, and `LIMIT` what you expect one of.**
+- **Bulk over loops.** `insertRows`, `updateRows` and `deleteRows` take an array; a loop of
+  single-row calls is N round trips for one change.
+- **Read once per execution.** Something every call in a request needs - the caller, a
+  configuration row - is read once and kept in the execution extras
+  (`manager.setExtras`), the way `currentUserGrant` remembers the caller.
+- **Cache before Catalyst Cache.** A value safe to keep across requests sits in an
+  in-process LRU first, so a hit costs no call at all; Catalyst Cache is the fallback
+  shared across instances. `ZohoConnection`'s minted tokens are the worked example.
+
+A path that has to make several calls should say so in a comment, so the next reader
+does not "optimise" a call that is load-bearing.
 
 ## Writing a wrapper
 

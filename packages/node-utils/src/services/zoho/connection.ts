@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   accountsHttpCode,
   ZohoAuthError,
@@ -28,8 +28,15 @@ const GRANT_SOURCE_KEY = "zoho.grantSource";
 const EXPIRY_MARGIN_MS = 5 * 60_000;
 /** Catalyst segments measure TTL in hours, and a Zoho access token lives one. */
 const CACHE_EXPIRY_HOURS = 1;
+/** Long enough to read Zoho's consent screen, short enough that a leaked url goes stale. */
+const CONSENT_STATE_TTL_MS = 10 * 60_000;
+/** `/connect` and `/callback` may land on different AppSail instances, whose clocks need
+ *  not agree to the millisecond. */
+const CLOCK_SKEW_MS = 60_000;
+/** Ties the signature to this one purpose, since the key is the client secret. */
+const CONSENT_STATE_LABEL = "zoho-consent-state";
 /** Enough for every user one AppSail instance is likely to serve between restarts. */
-const MINTED_TOKEN_CAPACITY = 1000;
+const CACHED_USER_CAPACITY = 1000;
 
 /** What the caches hold. The segment TTL is measured in whole hours and so is far too
  *  coarse to rely on alone; the expiry travels with the token and is checked on read. */
@@ -50,7 +57,20 @@ interface CachedAccessToken {
  * It is per process, so several AppSail instances each keep their own. That costs an extra
  * mint, never a wrong answer - every read still checks `expiresAt`.
  */
-const mintedTokens = new LruCache<CachedAccessToken>(MINTED_TOKEN_CAPACITY);
+const mintedTokens = new LruCache<CachedAccessToken>(CACHED_USER_CAPACITY);
+
+/**
+ * Refresh tokens already read from the table in this process, so a mint after the first
+ * skips the ZCQL round trip. Keyed by Catalyst user id, for the same reason as
+ * `mintedTokens`.
+ *
+ * In-process only, never Catalyst Cache: the table holds the token in an encrypted
+ * column, and a cache entry would hold the same long-lived secret in the clear.
+ *
+ * Another instance may replace or revoke a grant after this one cached it, so a cached
+ * token is trusted only until Zoho rejects it - then the table decides, see `mint`.
+ */
+const refreshTokens = new LruCache<string>(CACHED_USER_CAPACITY);
 
 /** One grant operation per user at a time: concurrent mints wait for the first and reuse
  *  its token, and a duplicate callback finds the grant the first one stored. Keyed
@@ -150,17 +170,13 @@ export class ZohoConnection {
   }
 
   /** Where to send the browser for consent. The state it carries ties the redirect to
-   *  the browser that asked for it. Without that, anyone can hand a signed-in user a
-   *  callback url carrying their own grant code and bind this user's account to someone
-   *  else's Zoho org. */
+   *  the user who asked for it. Without that, anyone can hand a signed-in user a callback
+   *  url carrying their own grant code and bind this user's account to someone else's Zoho
+   *  org. */
   async consentUrl(scopes: string[], redirectUri: string): Promise<string> {
     const referenceId = await this.grant().getReferenceId();
-    const state = randomUUID();
-    await zohoConnectionCache.putValue(
-      ZohoConnection.stateKey(referenceId),
-      state,
-      CACHE_EXPIRY_HOURS,
-    );
+    const issuedAt = Date.now();
+    const state = `${issuedAt}.${this.signConsentState(referenceId, issuedAt)}`;
     return ZohoAccounts.consentUrl(
       this.credentials,
       scopes,
@@ -184,16 +200,19 @@ export class ZohoConnection {
   }
 
   /** Whether the grant can be used right now, answered as cheaply as possible and never
-   *  by minting: a usable token in this process or the shared cache proves a grant
+   *  by minting: a usable token in this process or in Catalyst Cache proves a grant
    *  exists, so only a cold cache falls through to the stored-grant check. */
   async isConnected(): Promise<boolean> {
     const referenceId = await this.grant().getReferenceId();
-    if (ZohoConnection.isUsable(mintedTokens.get(referenceId))) {
+    if (
+      ZohoConnection.isUsable(mintedTokens.get(referenceId)) ||
+      refreshTokens.get(referenceId) !== undefined
+    ) {
       return true;
     }
-    const shared = await ZohoConnection.sharedToken(referenceId);
-    if (ZohoConnection.isUsable(shared)) {
-      mintedTokens.set(referenceId, shared);
+    const cached = await ZohoConnection.getCachedTokenFromCatalyst(referenceId);
+    if (ZohoConnection.isUsable(cached)) {
+      mintedTokens.set(referenceId, cached);
       return true;
     }
     return (
@@ -204,7 +223,7 @@ export class ZohoConnection {
     );
   }
 
-  /** Revokes the grant at Zoho and forgets it here, so the next `/connect` asks for
+  /** Revokes the grant at Zoho and deletes it here, so the next `/connect` asks for
    *  consent again. Does nothing when no grant is stored. */
   async disconnect(): Promise<void> {
     const grant = this.grant();
@@ -214,7 +233,7 @@ export class ZohoConnection {
     );
   }
 
-  /** A token valid right now: this process's own, then the shared cache, then a fresh
+  /** A token valid right now: this process's own, then Catalyst Cache's, then a fresh
    *  mint from the stored refresh token. */
   async getToken(): Promise<string> {
     const grant = this.grant();
@@ -242,21 +261,36 @@ export class ZohoConnection {
     return grant;
   }
 
-  /** Passes once, and only for the state issued to this owner. */
-  private static async verifyState(
-    referenceId: string,
-    state: string,
-  ): Promise<void> {
-    const issued = await zohoConnectionCache.getValue(
-      ZohoConnection.stateKey(referenceId),
-    );
-    if (issued === undefined || issued !== state) {
+  /** Signed rather than stored, so consent costs no Catalyst call. The state is
+   *  `issuedAt.signature`; the reference id is in the signature, never in the url, so a
+   *  state issued to one user fails for every other. Not single-use, and need not be: a
+   *  grant code is single-use at Zoho, and a user already connected stops before any
+   *  exchange. */
+  private verifyState(referenceId: string, state: string): void {
+    const [issuedAtText, signature] = state.split(".");
+    const issuedAt = Number(issuedAtText);
+    const age = Date.now() - issuedAt;
+    const expected = Buffer.from(this.signConsentState(referenceId, issuedAt));
+    const received = Buffer.from(signature ?? "");
+    const valid =
+      Number.isInteger(issuedAt) &&
+      age >= -CLOCK_SKEW_MS &&
+      age <= CONSENT_STATE_TTL_MS &&
+      received.length === expected.length &&
+      timingSafeEqual(received, expected);
+    if (!valid) {
       throw new ZohoAuthError(
         ZohoAuthErrorCode.StateMismatch,
         "state does not match the consent request.",
       );
     }
-    await zohoConnectionCache.deleteValue(ZohoConnection.stateKey(referenceId));
+  }
+
+  /** HMAC keyed by the client secret, which only this server holds. */
+  private signConsentState(referenceId: string, issuedAt: number): string {
+    return createHmac("sha256", this.credentials.clientSecret)
+      .update(`${CONSENT_STATE_LABEL}:${referenceId}:${issuedAt}`)
+      .digest("base64url");
   }
 
   /** Runs under the owner's grant lock, so the state check, the existence check and the
@@ -267,7 +301,7 @@ export class ZohoConnection {
     state: string,
     redirectUri: string,
   ): Promise<void> {
-    await ZohoConnection.verifyState(referenceId, state);
+    this.verifyState(referenceId, state);
     const stored = await ZohoConnection.storedGrantRowId(
       referenceId,
       CatalystScope.User,
@@ -286,7 +320,8 @@ export class ZohoConnection {
       REFERENCE_ID: referenceId,
       REFRESH_TOKEN: grant.refreshToken,
     });
-    await ZohoConnection.store(
+    refreshTokens.set(referenceId, grant.refreshToken);
+    await ZohoConnection.cacheAccessToken(
       referenceId,
       grant.accessToken,
       grant.expiresInSeconds,
@@ -303,13 +338,13 @@ export class ZohoConnection {
     if (ZohoConnection.isUsable(local)) {
       return local.accessToken;
     }
-    const shared = await ZohoConnection.sharedToken(referenceId);
-    if (ZohoConnection.isUsable(shared)) {
-      mintedTokens.set(referenceId, shared);
-      return shared.accessToken;
+    const cached = await ZohoConnection.getCachedTokenFromCatalyst(referenceId);
+    if (ZohoConnection.isUsable(cached)) {
+      mintedTokens.set(referenceId, cached);
+      return cached.accessToken;
     }
     const minted = await this.mint(referenceId, grant);
-    await ZohoConnection.store(
+    await ZohoConnection.cacheAccessToken(
       referenceId,
       minted.accessToken,
       minted.expiresInSeconds,
@@ -332,22 +367,42 @@ export class ZohoConnection {
     return typeof rowId === "string" ? rowId : undefined;
   }
 
-  /** A refresh token Zoho no longer honours - revoked by the user or an admin, or pruned
-   *  once the user holds too many - is forgotten here, so the grant reads as not
-   *  connected and `/connect` can ask for consent again instead of failing forever. */
+  /** Mints from the cached refresh token when there is one. A rejection of a cached token
+   *  proves nothing about the stored grant - another instance may have replaced it since -
+   *  so it only evicts the cache, and the table's token gets the final say. */
   private async mint(
+    referenceId: string,
+    grant: GrantSource,
+  ): Promise<ZohoAccessToken> {
+    const cached = refreshTokens.get(referenceId);
+    if (cached !== undefined) {
+      try {
+        return await ZohoAccounts.refresh(this.credentials, cached);
+      } catch (error) {
+        if (!ZohoConnection.isRejectedGrant(error)) {
+          throw error;
+        }
+        refreshTokens.delete(referenceId);
+      }
+    }
+    return this.mintFromStore(referenceId, grant);
+  }
+
+  /** A refresh token Zoho no longer honours - revoked by the user or an admin, or pruned
+   *  once the user holds too many - is deleted here, so the grant reads as not
+   *  connected and `/connect` can ask for consent again instead of failing forever. */
+  private async mintFromStore(
     referenceId: string,
     grant: GrantSource,
   ): Promise<ZohoAccessToken> {
     const refreshToken = await grant.getRefreshToken();
     try {
-      return await ZohoAccounts.refresh(this.credentials, refreshToken);
+      const minted = await ZohoAccounts.refresh(this.credentials, refreshToken);
+      refreshTokens.set(referenceId, refreshToken);
+      return minted;
     } catch (error) {
-      if (
-        error instanceof ZohoAuthError &&
-        error.code === ZohoAuthErrorCode.InvalidGrantCode
-      ) {
-        await ZohoConnection.forget(referenceId);
+      if (ZohoConnection.isRejectedGrant(error)) {
+        await ZohoConnection.deleteGrant(referenceId);
         throw new ZohoAuthError(
           ZohoAuthErrorCode.NotConnected,
           `Zoho no longer accepts the grant stored for ${referenceId}.`,
@@ -358,22 +413,29 @@ export class ZohoConnection {
     }
   }
 
-  /** Runs under the owner's grant lock. Zoho answers a token it no longer knows with a
-   *  400, which means the grant is already gone there and only needs forgetting here. */
+  private static isRejectedGrant(error: unknown): boolean {
+    return (
+      error instanceof ZohoAuthError &&
+      error.code === ZohoAuthErrorCode.InvalidGrantCode
+    );
+  }
+
+  /** Runs under the owner's grant lock. Reads the table, not the cache: a token cached
+   *  here may be one another instance has already replaced, and revoking that would leave
+   *  the live grant working at Zoho. Reading the refresh token is also the existence
+   *  check - it throws `NotConnected` when there is no row - so nothing is asked twice.
+   *  Zoho answers a token it no longer knows with a 400, which means the grant is already
+   *  gone there and only needs deleting here. */
   private async revokeGrant(
     referenceId: string,
     grant: GrantSource,
   ): Promise<void> {
-    if (
-      (await ZohoConnection.storedGrantRowId(
-        referenceId,
-        CatalystScope.User,
-      )) === undefined
-    ) {
+    const refreshToken = await ZohoConnection.storedOrNone(grant);
+    if (refreshToken === undefined) {
       return;
     }
     try {
-      await ZohoAccounts.revoke(this.credentials, await grant.getRefreshToken());
+      await ZohoAccounts.revoke(this.credentials, refreshToken);
     } catch (error) {
       if (
         !(error instanceof ZohoAuthError) ||
@@ -382,37 +444,57 @@ export class ZohoConnection {
         throw error;
       }
     }
-    await ZohoConnection.forget(referenceId);
+    await ZohoConnection.deleteGrant(referenceId);
   }
 
-  /** Clears the stored grant and the shared token. Admin, because a rejected grant is
-   *  also found by a job, which has no user; safe because `referenceId` is always one this
-   *  connection resolved, never one a request supplied. Another AppSail instance may still
-   *  hold the token in its own LRU until it expires; that is at most an hour. */
-  private static async forget(referenceId: string): Promise<void> {
-    const rowId = await ZohoConnection.storedGrantRowId(
-      referenceId,
-      CatalystScope.Admin,
-    );
-    if (rowId !== undefined) {
-      await zohoConnectionTable.runIn(CatalystScope.Admin).deleteRow(rowId);
+  private static async storedOrNone(
+    grant: GrantSource,
+  ): Promise<string | undefined> {
+    try {
+      return await grant.getRefreshToken();
+    } catch (error) {
+      if (
+        error instanceof ZohoAuthError &&
+        error.code === ZohoAuthErrorCode.NotConnected
+      ) {
+        return undefined;
+      }
+      throw error;
     }
-    mintedTokens.delete(referenceId);
-    await zohoConnectionCache.deleteValue(ZohoConnection.tokenKey(referenceId));
   }
 
-  private static async sharedToken(
+  /** Clears the stored grant, both of this process's caches and the Catalyst Cache entry.
+   *  Admin, because a rejected grant is also found by a job, which has no user; safe
+   *  because `referenceId` is always one this connection resolved, never one a request
+   *  supplied. Another AppSail instance may still hold the token in its own LRU until it
+   *  expires; that is at most an hour. */
+  private static async deleteGrant(referenceId: string): Promise<void> {
+    const table = zohoConnectionTable;
+    await Zcql.runIn(CatalystScope.Admin).executeQuery(
+      `DELETE FROM ${table.name} WHERE ${table.column("REFERENCE_ID")} = '${referenceId}'`,
+    );
+    mintedTokens.delete(referenceId);
+    refreshTokens.delete(referenceId);
+    await zohoConnectionCache.deleteValue(
+      ZohoConnection.accessTokenCacheKey(referenceId),
+    );
+  }
+
+  /** Catalyst Cache only - the LRU is checked by the caller first, because a hit there
+   *  costs no call at all. */
+  private static async getCachedTokenFromCatalyst(
     referenceId: string,
   ): Promise<CachedAccessToken | undefined> {
     const value = await zohoConnectionCache.getValue(
-      ZohoConnection.tokenKey(referenceId),
+      ZohoConnection.accessTokenCacheKey(referenceId),
     );
     return value === undefined
       ? undefined
       : (JSON.parse(value) as CachedAccessToken);
   }
 
-  private static async store(
+  /** Into both caches: this process's LRU and Catalyst Cache, for the other instances. */
+  private static async cacheAccessToken(
     referenceId: string,
     accessToken: string,
     expiresInSeconds: number,
@@ -423,7 +505,7 @@ export class ZohoConnection {
     };
     mintedTokens.set(referenceId, entry);
     await zohoConnectionCache.putValue(
-      ZohoConnection.tokenKey(referenceId),
+      ZohoConnection.accessTokenCacheKey(referenceId),
       JSON.stringify(entry),
       CACHE_EXPIRY_HOURS,
     );
@@ -437,11 +519,8 @@ export class ZohoConnection {
     );
   }
 
-  private static tokenKey(referenceId: string): string {
+  private static accessTokenCacheKey(referenceId: string): string {
     return `ZOT:${referenceId}`;
   }
 
-  private static stateKey(referenceId: string): string {
-    return `ZOS:${referenceId}`;
-  }
 }

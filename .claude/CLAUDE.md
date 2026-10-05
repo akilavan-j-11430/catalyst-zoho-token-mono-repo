@@ -157,11 +157,12 @@ runtime does not have.
 ## Conventions
 
 Topic rules live one-per-file in `.claude/rules/` and load automatically: `catalyst-sdk.md`
-covers every Catalyst call, `outbound-http.md` every call to a service outside this repo,
-`web-data-access.md` every call the browser makes to our own API and every form that
-collects one, `environment.md` every environment variable, `zoho-token.md` every Zoho
-access token, `typography.md` every font. Add a file there rather than growing this one, and give it `paths:` frontmatter if it only
-applies to part of the tree.
+covers every Catalyst call and how few of them a solution makes, `outbound-http.md` every
+call to a service outside this repo, `web-data-access.md` every call the browser makes to
+our own API and every form that collects one, `environment.md` every environment
+variable, `zoho-token.md` every Zoho access token, `typography.md` every font. Add a file
+there rather than growing this one, and give it `paths:` frontmatter if it only applies to
+part of the tree.
 
 - `@/*` resolves to `./src/*` in every workspace. Use it instead of `../../`.
 - Shared packages expose subpaths, not a barrel: `@repo/types/api`, `@repo/routing/api-path`,

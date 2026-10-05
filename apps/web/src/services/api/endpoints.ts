@@ -8,4 +8,9 @@ export const endpoint = {
   auth: {
     register: ApiPath.Auth + ApiPath.Register,
   },
+  zohoToken: {
+    connect: ApiPath.ZohoToken + ApiPath.Connect,
+    status: ApiPath.ZohoToken + ApiPath.Status,
+    disconnect: ApiPath.ZohoToken + ApiPath.Disconnect,
+  },
 } as const;

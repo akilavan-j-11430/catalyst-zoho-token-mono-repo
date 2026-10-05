@@ -11,9 +11,12 @@ Port: `X_ZOHO_CATALYST_LISTEN_PORT`, else `PORT`, else **8000**.
 src/
 |-- index.ts              app setup, middleware order, route mounting
 |-- env.ts                every environment variable this app reads
+|-- zoho-connections.ts   the app's one ZohoConnection, built from env - see .claude/rules/zoho-token.md
 |-- middleware.ts         execution context, request timing, terminal error handler
+|-- routes/api-router.ts  the only place a router mounts
 |-- routes/ping.ts        reference route - copy this shape
 |-- routes/auth.ts        POST /auth/register - registers a Catalyst app user
+|-- routes/zoho-token.ts  GET connect, callback, status; POST disconnect
 |-- errors/http-error.ts  typed failures that map to HTTP statuses
 |-- utils/api.ts          response builders
 `-- framework/catalyst-logger.ts   console -> Catalyst log pipe, imported for side effect

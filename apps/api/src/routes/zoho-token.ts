@@ -4,6 +4,7 @@ import {
   ZohoAuthError,
   ZohoAuthErrorCode,
 } from "@repo/node-utils/errors/zoho-auth-error";
+import type { ZohoConnectionStatus } from "@repo/types/zoho-token";
 import { logger } from "@repo/node-utils/framework/logger";
 import { env } from "@/env";
 import { HttpError } from "@/errors/http-error";
@@ -83,12 +84,14 @@ zohoTokenRouter.get(ApiPath.Callback, async (req, res) => {
 });
 
 zohoTokenRouter.get(ApiPath.Status, async (_req, res) => {
-  res.json(
-    toRecordResponse({ connected: await userZohoConnection.isConnected() }),
-  );
+  const status: ZohoConnectionStatus = {
+    connected: await userZohoConnection.isConnected(),
+  };
+  res.json(toRecordResponse(status));
 });
 
 zohoTokenRouter.post(ApiPath.Disconnect, async (_req, res) => {
   await userZohoConnection.disconnect();
-  res.json(toRecordResponse({ connected: false }));
+  const status: ZohoConnectionStatus = { connected: false };
+  res.json(toRecordResponse(status));
 });

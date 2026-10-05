@@ -97,34 +97,18 @@
  * Everything below is one attribute wider than the rule it replaces, so it wins on
  * specificity rather than on the order of sonner's runtime `<style>`.
  *
- * The position: sonner anchors a top-center stack to the top of the viewport, and a
- * toast here is the app's answer to what you just did, so it belongs in the middle of
- * the page where you are already looking.
+ * The position is sonner's own top-center, never overridden. Centring the stack on the
+ * page put it over the very control that raised it, and sonner draws only the front
+ * toast's content - the ones behind are bare strips - so a stack mid-page read as a
+ * broken layout.
  */
-[data-sonner-toaster][data-y-position="top"][data-x-position="center"] {
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-
-@media (max-width: 600px) {
-  /* Sonner goes full width and drops the horizontal shift, so only the vertical stays. */
-  [data-sonner-toaster][data-y-position="top"][data-x-position="center"] {
-    transform: translateY(-50%);
-  }
-}
-
+/* Sonner already positions every toast absolutely, which anchors the rail below. Making
+   it relative takes the toasts out of sonner's stack: each one gets its own row, and the
+   ones behind the front show as empty bars instead of folding under it. */
 [data-sonner-toast][data-styled="true"] {
-  position: relative;
   overflow: hidden;
-  justify-content: center;
 }
 
-/* Sonner lets the content span the toast. At 75vw that strands a sentence against the
-   left edge of a very wide panel, so the group is centred and the line length capped. */
-[data-sonner-toast][data-styled="true"][data-type] [data-content] {
-  flex: 0 1 auto;
-  max-width: 46rem;
-}
 
 /* The accent rail. It is what makes the toast read as a verdict rather than a card. */
 [data-sonner-toast][data-styled="true"]::before {
@@ -136,20 +120,26 @@
 }
 
 [data-sonner-toast][data-styled="true"] [data-icon] {
-  height: 2.75rem;
-  width: 2.75rem;
+  height: 2rem;
+  width: 2rem;
   justify-content: center;
   border-radius: calc(infinity * 1px);
   margin-inline-end: 0.125rem;
 }
 
 [data-sonner-toast][data-styled="true"] [data-icon] svg {
-  height: 1.375rem;
-  width: 1.375rem;
+  height: 1rem;
+  width: 1rem;
   margin: 0;
 }
 
-[data-sonner-toast][data-styled="true"] [data-close-button] {
+/* Inside the toast on the right. Sonner hangs it off the top-left corner, where the
+   overflow that clips the rail to the rounded corners would cut it in half. */
+[data-sonner-toast][data-styled="true"][data-type] [data-close-button] {
+  left: auto;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
   background: transparent;
   border-color: transparent;
   color: currentColor;
@@ -182,7 +172,7 @@
   background: var(--success);
   color: #fff;
   box-shadow:
-    0 0 0 0.5rem color-mix(in oklab, var(--success) 10%, transparent),
+    0 0 0 0.25rem color-mix(in oklab, var(--success) 10%, transparent),
     0 8px 20px -6px color-mix(in oklab, var(--success) 60%, transparent);
 }
 
@@ -212,7 +202,7 @@
   background: var(--destructive);
   color: #fff;
   box-shadow:
-    0 0 0 0.5rem color-mix(in oklab, var(--destructive) 10%, transparent),
+    0 0 0 0.25rem color-mix(in oklab, var(--destructive) 10%, transparent),
     0 8px 20px -6px color-mix(in oklab, var(--destructive) 60%, transparent);
 }
 

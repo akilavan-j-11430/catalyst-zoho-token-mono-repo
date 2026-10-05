@@ -24,7 +24,7 @@ export function Toaster(props: ToasterProps) {
       }}
       style={
         {
-          "--width": "75vw",
+          "--width": "26rem",
           "--normal-bg": "var(--card)",
           "--normal-text": "var(--card-foreground)",
           "--normal-border": "var(--border)",
@@ -32,9 +32,9 @@ export function Toaster(props: ToasterProps) {
       }
       toastOptions={{
         classNames: {
-          toast: "font-sans items-center gap-5 rounded-2xl py-8 pr-8 pl-9",
-          title: "text-lg font-semibold tracking-tight",
-          description: "mt-2 text-sm leading-relaxed opacity-75",
+          toast: "font-sans items-center gap-3 rounded-xl py-4 pr-11 pl-5",
+          title: "text-sm font-semibold",
+          description: "mt-0.5 text-sm leading-relaxed opacity-75",
         },
       }}
       {...props}

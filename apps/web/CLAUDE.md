@@ -47,8 +47,11 @@ Three libraries, each with one job. `@tanstack/react-query` owns server state,
 `.claude/rules/web-data-access.md` covers the first two in full.
 
 What belongs here is the toast, because it is styling rather than data flow.
-`components/ui/sonner.tsx` is the vendored Toaster, sitting in the centre of the page at
-`--width: 75vw`. **Its whole look lives in `globals.css`, not in the component.** Sonner
+`components/ui/sonner.tsx` is the vendored Toaster, at sonner's own top-center position and
+`--width: 26rem`. Never move the stack to the middle of the page: it lands on the control
+that raised it, and sonner draws only the front toast's content, so the ones behind show
+as bare strips across the layout. **Its whole look lives in `globals.css`, not in the
+component.** Sonner
 sets `background` as a shorthand, which wipes out any `background-image` a utility class
 adds, and styles `[data-icon]` three attributes deep - so Tailwind classes lose on
 specificity whatever you do. Each rule there is one attribute wider than the one it

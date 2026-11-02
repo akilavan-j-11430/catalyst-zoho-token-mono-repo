@@ -1,4 +1,5 @@
 import type { Authentication } from "@zcatalyst/auth/web";
+import { CamelCase } from "@repo/case-conversion/camel-case";
 
 export interface SignedInUser {
   emailId: string;
@@ -38,10 +39,7 @@ function toSignedInUser(value: unknown): SignedInUser | null {
   if (typeof value !== "object" || value === null) {
     return null;
   }
-  const { email_id: emailId, first_name: firstName, last_name: lastName } = value as Record<
-    string,
-    unknown
-  >;
+  const { emailId, firstName, lastName } = CamelCase.convertKeys(value as Record<string, unknown>);
   if (typeof emailId !== "string" || emailId === "") {
     return null;
   }

@@ -28,6 +28,7 @@
     "eslint": "^9.39.5"
   },
   "dependencies": {
+    "@repo/case-conversion": "workspace:*",
     "@repo/types": "workspace:*"
   }
 }

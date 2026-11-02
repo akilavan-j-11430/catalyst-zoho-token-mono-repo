@@ -1,18 +1,19 @@
 # packages/
 
-Shared code for the monorepo. All four are private and consumed as `"workspace:*"`.
+Shared code for the monorepo. All six are private and consumed as `"workspace:*"`.
 
 | Package | Holds |
 |---|---|
 | `@repo/routing` | API path segments (`ApiPath`) shared by `apps/api` and `apps/web` |
+| `@repo/case-conversion` | `CamelCase` - renames a vendor's snake_case/kebab-case keys, for `node-utils` and `apps/web` |
 | `@repo/types` | API response shapes shared by `apps/api` and `apps/web` |
 | `@repo/node-utils` | `ExecutionContext`, `logger`, `env`, `RuntimeError`, `HttpClient`, `PLimit`, `PLimitPerKey`, and the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user-management`) plus the resource handles built from them |
 | `@repo/typescript-config` | `base.json` that every tsconfig extends |
-| `@repo/eslint-config` | flat ESLint config - currently unwired |
+| `@repo/eslint-config` | flat ESLint config: the import boundaries and the camelCase naming rule |
 
 ## Import paths
 
-`@repo/types` and `@repo/node-utils` expose **subpaths**, not a barrel. The `exports`
+`@repo/types`, `@repo/routing`, `@repo/case-conversion` and `@repo/node-utils` expose **subpaths**, not a barrel. The `exports`
 block maps `./*` onto `./dist/*.js` + `./dist/*.d.ts`, so the import path mirrors the
 path under `src/`:
 

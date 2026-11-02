@@ -15,17 +15,19 @@ enters our code, and use only the converted value from there on:
 ```ts
 // packages/node-utils/src/catalyst/user-management.ts
 function toRegisteredUser(details: RegisteredUserDetails): RegisteredUser {
-  return {
-    userId: details.user_id,
-    emailId: details.email_id,
-    firstName: details.first_name,
-    ...
-  };
+  const { userId, emailId, firstName, lastName, isConfirmed } = CamelCase.convertKeys(details);
+  return { userId, emailId, firstName, lastName, isConfirmed };
 }
 ```
 
 - The vendor's casing appears in exactly two places: the type that describes the wire
   shape, and the function that maps it to ours. Nothing past that function sees it.
+- Convert with `CamelCase.convertKeys` (`@repo/case-conversion/camel-case`), as above,
+  rather than renaming field by field. It renames keys at any depth and types the result,
+  so a misspelt field is a compile error. Still pick the fields you expose, so the rest of
+  the vendor's record does not leak.
+  It cannot split a word with no separator - `CREATEDTIME` becomes `createdtime` - so
+  Catalyst table rows are mapped field by field in their repository instead.
 - ESLint enforces it (`@typescript-eslint/naming-convention`, from `@repo/eslint-config`).
   The vendor seams are exempt through `allowVendorCasing(files)` - `catalyst/`,
   `repositories/` and `services/zoho/accounts.ts` in `node-utils`, `src/catalyst/` in

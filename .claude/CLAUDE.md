@@ -81,6 +81,7 @@ catalyst serve      <- entry point, port assigned by the CLI (3000, 3001, 3002, 
 | `apps/web` | `web` | Slate `web` (staged in `slate/web`) |
 | `packages/types` | `@repo/types` | - |
 | `packages/routing` | `@repo/routing` | - |
+| `packages/case-conversion` | `@repo/case-conversion` | - |
 | `packages/node-utils` | `@repo/node-utils` | - |
 | `packages/typescript-config` | `@repo/typescript-config` | - |
 | `packages/eslint-config` | `@repo/eslint-config` | - |
@@ -168,6 +169,7 @@ little a migration touches. Add a file there rather than growing this one, and g
 
 - `@/*` resolves to `./src/*` in every workspace. Use it instead of `../../`.
 - Shared packages expose subpaths, not a barrel: `@repo/types/api`, `@repo/routing/api-path`,
+  `@repo/case-conversion/camel-case`,
   `@repo/node-utils/framework/logger`, `@repo/node-utils/framework/async-context`,
   `@repo/node-utils/catalyst/resources`, `@repo/node-utils/utils/env`.
 - File names are kebab-case: `http-error.ts`, `async-context.ts`.

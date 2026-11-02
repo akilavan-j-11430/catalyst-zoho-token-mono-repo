@@ -125,6 +125,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@repo/case-conversion':
+        specifier: workspace:*
+        version: link:../../packages/case-conversion
       '@repo/routing':
         specifier: workspace:*
         version: link:../../packages/routing
@@ -190,6 +193,21 @@ importers:
         specifier: ^4
         version: 4.3.3
 
+  packages/case-conversion:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      concurrently:
+        specifier: ^10.0.5
+        version: 10.0.5
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+
   packages/eslint-config:
     dependencies:
       '@eslint/js':
@@ -207,6 +225,9 @@ importers:
 
   packages/node-utils:
     dependencies:
+      '@repo/case-conversion':
+        specifier: workspace:*
+        version: link:../case-conversion
       '@repo/types':
         specifier: workspace:*
         version: link:../types

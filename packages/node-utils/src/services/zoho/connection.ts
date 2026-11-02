@@ -127,7 +127,7 @@ async function storedRefreshToken(
   const rows = await Zcql.runIn(scope).executeQuery(
     `SELECT ${table.column("REFRESH_TOKEN")} FROM ${table.name} WHERE ${table.column("REFERENCE_ID")} = '${referenceId}' LIMIT 1`,
   );
-  const refreshToken = rows[0]?.[table.column("REFRESH_TOKEN")];
+  const refreshToken = rows[0]?.[table.name]?.[table.column("REFRESH_TOKEN")];
   if (typeof refreshToken !== "string") {
     throw new ZohoAuthError(
       ZohoAuthErrorCode.NotConnected,
@@ -363,7 +363,7 @@ export class ZohoConnection {
     const rows = await Zcql.runIn(scope).executeQuery(
       `SELECT ${table.column("ROWID")} FROM ${table.name} WHERE ${table.column("REFERENCE_ID")} = '${referenceId}' LIMIT 1`,
     );
-    const rowId = rows[0]?.[table.column("ROWID")];
+    const rowId = rows[0]?.[table.name]?.[table.column("ROWID")];
     return typeof rowId === "string" ? rowId : undefined;
   }
 

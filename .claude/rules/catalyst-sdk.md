@@ -136,11 +136,27 @@ ZCQL names columns through the handle, so a typo is a compile error there too:
 const table = todoTable;
 `SELECT COUNT(${table.column("ROWID")}) FROM ${table.name}`             // COUNT(ROWID)
 `SELECT COUNT(${table.qualifiedColumn("ROWID")}) FROM ${table.name}`    // COUNT(Todo.ROWID)
-rows[0]?.[table.column("TITLE")]                                        // read a result
+rows[0]?.[table.name]?.[table.column("TITLE")]                          // read a result
 ```
 
-Use `qualifiedColumn` once a query joins a second table. A ZCQL result is still `ZcqlRow`
-(`Record<string, unknown>`) - a query picks its own columns, so no row type describes it.
+Use `qualifiedColumn` once a query joins a second table. A ZCQL result is a `ZcqlRow` -
+each table's columns under that table's name, exactly as Catalyst sends them, so a column
+two joined tables share (`ROWID`) is never lost to the other. A query picks its own
+columns, so no row type describes them. Two shapes to know: an aggregate's key depends on
+the path - through the SDK `COUNT(ROWID)` reads back as `COUNT(ROWID)`, through the REST API
+(and the MCP) as `ROWID` - so read it by position, never by name, or it silently reads as 0;
+and `DELETE` answers `{ Table: { DELETED_ROWS_COUNT } }`.
+
+```ts
+const [countRow] = await Zcql.runIn(CatalystScope.User).executeQuery(
+  `SELECT COUNT(${table.column("ROWID")}) FROM ${table.name}`,
+);
+const todoCount = Number(Object.values(countRow?.[table.name] ?? {})[0] ?? 0);
+```
+
+A statement returns at most 300 rows, so a read that can exceed that pages with
+`LIMIT <first row>, <count>` - and the first row counts **from 1**: `LIMIT 1, 300`, then
+`LIMIT 301, 300`. A 0-based offset (`LIMIT 300, 300`) reads row 300 twice.
 
 `Zcql` is the exception and has no handle. A query joins across tables and belongs to no
 single one, so it is static and starts from `runIn` -

@@ -42,3 +42,52 @@ An interface with one implementation and no second in sight, a factory for a cla
 one place, or a strategy with one strategy is the hypothetical-future abstraction the
 root instructions rule out. The pattern arrives with its second case, and the second case
 says what the shape should be.
+
+## No callback parameters in server code
+
+In `apps/api` and `packages/node-utils`, a method does its work in its own body. Do not
+write a helper that takes a callback (`cb`, `fn`, `call: () => Promise<T>`) just to wrap
+`try/catch`, logging or a cast around it - write the `try/catch` inline in each method, as
+`bucket.ts` does. A helper takes values and returns values.
+
+```ts
+// not this
+insertRow(row: Row): Promise<StoredRow<Row>> {
+  return this.run("insertRow", () => this.table().insertRow(row));
+}
+
+// this
+async insertRow(row: Row): Promise<StoredRow<Row>> {
+  try {
+    const storedRow = await this.table().insertRow(row);
+    return storedRow as unknown as StoredRow<Row>;
+  } catch (cause) {
+    throw CatalystError.InvalidResource(`insertRow failed on ${this.name}`, cause);
+  }
+}
+```
+
+The exception is an API that itself takes a callback - `AsyncLocalStorage.run`, Express
+middleware, `Array.map`/`filter` - and `PLimit`/`PLimitPerKey` (`node-utils/src/utils/`),
+whose whole job is to decide when a task runs. The per-user lock in `ZohoConnection` is
+that case, not a wrapper to inline.
+
+Events follow the same split. Consuming a Node event is allowed, but prefer the awaitable
+form where Node has one:
+
+| Instead of | Write |
+|---|---|
+| `stream.on("data", ...)` / `on("end", ...)` | `for await (const chunk of stream)`, as `bucket.ts` does |
+| `source.pipe(target)` plus `on("error", ...)` | `await pipeline(source, target)` from `node:stream/promises` |
+| waiting on `stream.on("finish")` / `on("close")` | `await finished(stream)` from `node:stream/promises` |
+| a one-shot event you wait for | `await once(emitter, "ready")` from `node:events` |
+
+Keep a listener only when the code must not wait for the event - logging after a response,
+cleanup on a client disconnect, a handler that fires many times. `res.on("finish")` in
+`apps/api/src/middleware.ts` and `server.on("upgrade")` in `apps/proxy/src/index.ts` are
+that case.
+
+Keep the implementation simple and name each variable for what it holds - `storedRow`,
+`queryResult`, `page` - never `cb`, `fn`, `tmp` or `x`.
+
+This is server-side only. React components and hooks are callback-driven by design.

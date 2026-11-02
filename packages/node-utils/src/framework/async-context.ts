@@ -62,6 +62,6 @@ export function currentContext(): ExecutionContext {
   return context;
 }
 
-export function runWithContext<T>(context: ExecutionContext, fn: () => T): T {
-  return executionStore.run(context, fn);
+export function runWithContext<T>(context: ExecutionContext, handler: () => T): T {
+  return executionStore.run(context, handler);
 }

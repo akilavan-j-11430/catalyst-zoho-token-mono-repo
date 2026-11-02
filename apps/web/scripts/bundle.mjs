@@ -89,9 +89,18 @@ const { stdout: npmVersion } = await execAsync("npm --version", {
   env: npmEnv,
 });
 
+// A `@repo/*` dev dependency - the shared ESLint config - is a local tool Slate never runs,
+// and npm cannot install `workspace:*`, so it is left out rather than vendored.
+const devDependencies = Object.fromEntries(
+  Object.entries(packageJsonFile.devDependencies ?? {}).filter(
+    ([name]) => !name.startsWith("@repo/"),
+  ),
+);
+
 const packageJson = {
   ...packageJsonFile,
   dependencies: { ...packageJsonFile.dependencies, ...vendoredDependencies },
+  devDependencies,
   packageManager: `npm@${npmVersion.trim()}`,
 };
 delete packageJson.scripts.bundle;

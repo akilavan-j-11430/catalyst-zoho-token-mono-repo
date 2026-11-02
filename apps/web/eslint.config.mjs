@@ -9,7 +9,7 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   // `src/services/api/client.ts` is the only place that speaks HTTP, the way
-  // `services/catalyst/` is the only place that reaches Catalyst. Prose drifts; this
+  // `catalyst/` is the only place that reaches Catalyst. Prose drifts; this
   // does not.
   // See `.claude/rules/web-data-access.md`.
   {

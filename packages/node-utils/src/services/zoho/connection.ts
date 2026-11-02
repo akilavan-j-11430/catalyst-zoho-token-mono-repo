@@ -9,9 +9,9 @@ import { currentContext } from "@/framework/async-context";
 import {
   zohoConnectionCache,
   zohoConnectionTable,
-} from "@/services/catalyst/resources";
-import { UserManagement } from "@/services/catalyst/user-management";
-import { Zcql } from "@/services/catalyst/zcql";
+} from "@/catalyst/resources";
+import { UserManagement } from "@/catalyst/user-management";
+import { Zcql } from "@/catalyst/zcql";
 import {
   ZohoAccounts,
   type ZohoAccessToken,

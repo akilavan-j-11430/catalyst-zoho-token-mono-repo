@@ -71,6 +71,12 @@ The scope is each grant's own business and not part of `GrantSource`. `isConnect
 `persistToken` and `disconnect` are request operations and use User. Deleting a grant
 Zoho rejected can happen inside a job too, so that delete is Admin.
 
+Both scopes have to be built before the connection runs. Catalyst starts empty for every
+request, so a router that uses a connection mounts
+`initCatalystScopes([CatalystScope.User, CatalystScope.Admin])` - User for the caller and
+their row, Admin for Catalyst Cache (admin-only) and that delete. `zohoTokenRouter` does
+this once for all of its routes.
+
 The `ZohoConnection` table's App User scope is **USER**: a signed-in user sees only the
 rows their own credentials created. So the insert in `persistToken` is always User scope,
 whatever the grant, and changing the table back to GLOBAL would let any app user read

@@ -1,5 +1,5 @@
-import { Cache } from "@/services/catalyst/cache";
-import { Table } from "@/services/catalyst/table";
+import { Cache } from "@/catalyst/cache";
+import { Table } from "@/catalyst/table";
 
 /** The Zoho refresh token, one row per Catalyst user. */
 export const zohoConnectionTable = Table.create<{

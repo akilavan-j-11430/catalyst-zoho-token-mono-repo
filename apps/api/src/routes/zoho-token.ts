@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { ApiPath } from "@repo/routing/api-path";
+import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
 import {
   ZohoAuthError,
   ZohoAuthErrorCode,
@@ -9,7 +10,7 @@ import { logger } from "@repo/node-utils/framework/logger";
 import { env } from "@/env";
 import { HttpError } from "@/errors/http-error";
 import { toRecordResponse } from "@/utils/api";
-import { validateUserAuthentication } from "@/middleware";
+import { initCatalystScopes, validateUserAuthentication } from "@/middleware";
 import { userZohoConnection } from "@/zoho-connections";
 
 /** Failures the user fixes by starting consent again. Every other `ZohoAuthError` -
@@ -49,7 +50,12 @@ function webAppHome(): string {
 }
 
 export const zohoTokenRouter: Router = Router();
-zohoTokenRouter.use(validateUserAuthentication)
+// User for the caller and their grant row, Admin for Catalyst Cache and for deleting a
+// grant Zoho rejected.
+zohoTokenRouter.use(
+  initCatalystScopes([CatalystScope.User, CatalystScope.Admin]),
+  validateUserAuthentication,
+);
 
 zohoTokenRouter.get(ApiPath.Connect, async (_req, res) => {
   if (await userZohoConnection.isConnected()) {

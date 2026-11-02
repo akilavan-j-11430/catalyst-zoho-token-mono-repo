@@ -19,7 +19,6 @@ Call it through `src/services/`, never `fetch` in a component:
 ```
 src/services/<domain>.ts       the calls themselves (auth.ts, ...)
 src/services/api/client.ts     transport - returns the whole response, like the server's HttpClient
-src/services/api/endpoints.ts  every path this app calls
 ```
 
 `api/` changes when the transport does; the domain files change when the product does.

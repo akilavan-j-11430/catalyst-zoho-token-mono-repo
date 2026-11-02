@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { ApiPath } from "@repo/routing/api-path";
-import { UserManagement } from "@repo/node-utils/services/catalyst/user-management";
+import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
+import { UserManagement } from "@repo/node-utils/catalyst/user-management";
 import type { NewUser } from "@repo/types/user";
 import { env } from "@/env";
 import { HttpError } from "@/errors/http-error";
+import { initCatalystScopes } from "@/middleware";
 import { toRecordResponse } from "@/utils/api";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -34,11 +36,15 @@ function toNewUser(body: unknown): NewUser {
 
 export const authRouter: Router = Router();
 
-authRouter.post(ApiPath.Register, async (req, res) => {
-  const user = toNewUser(req.body);
-  const registered = await UserManagement.register(
-    user,
-    env.get("AUTH_REDIRECT_URL"),
-  );
-  res.status(201).json(toRecordResponse(registered));
-});
+authRouter.post(
+  ApiPath.Register,
+  initCatalystScopes([CatalystScope.Admin]),
+  async (req, res) => {
+    const user = toNewUser(req.body);
+    const registered = await UserManagement.register(
+      user,
+      env.get("AUTH_REDIRECT_URL"),
+    );
+    res.status(201).json(toRecordResponse(registered));
+  },
+);

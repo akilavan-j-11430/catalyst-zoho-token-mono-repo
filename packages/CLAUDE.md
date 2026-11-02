@@ -20,7 +20,7 @@ path under `src/`:
 import type { RecordResponse } from "@repo/types/api";              // src/api.ts
 import { logger } from "@repo/node-utils/framework/logger";         // src/framework/logger.ts
 import { currentContext } from "@repo/node-utils/framework/async-context";
-import { zohoConnectionTable } from "@repo/node-utils/services/catalyst/resources";
+import { zohoConnectionCache } from "@repo/node-utils/catalyst/resources"; // src/catalyst/resources.ts
 import { defineEnv } from "@repo/node-utils/utils/env";               // src/utils/env.ts
 ```
 
@@ -40,14 +40,14 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 
 - **Keep them framework-free.** Both an Express app and a Next.js app import these.
   No `express`, no `react`, no Next.js imports.
-- **`node-utils/src/services/catalyst/` is the only directory that may import a Catalyst
+- **`node-utils/src/catalyst/` is the only directory that may import a Catalyst
   SDK.** ESLint enforces it. See `.claude/rules/catalyst-sdk.md`.
-- **Catalyst resources are declared once, in `services/catalyst/resources.ts`** - one
+- **Catalyst resources are declared once, in `catalyst/resources.ts`** - one
   `export const` per table, bucket, cache segment and job, built with the wrapper's
   `create` factory. Apps import the handle; they never construct a wrapper themselves.
   It sits here rather than in an app so two AppSails cannot name the same table twice.
 - **A capability an app lacks becomes a method on the wrapper**, never an SDK call at the
-  call site. `services/catalyst/` is meant to be the whole list of what this repo asks of
+  call site. `catalyst/` is meant to be the whole list of what this repo asks of
   Catalyst, so anything used from a route has to be visible there.
 - Node-only APIs (`node:async_hooks`, `fs`) belong in `node-utils` and must never be
   reached from `apps/web`.

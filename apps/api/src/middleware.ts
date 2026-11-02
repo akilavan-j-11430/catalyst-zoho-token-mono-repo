@@ -11,9 +11,9 @@ import {
   runWithContext,
 } from "@repo/node-utils/framework/async-context";
 import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
-import { Catalyst } from "@repo/node-utils/services/catalyst/catalyst";
+import { Catalyst } from "@repo/node-utils/catalyst/catalyst";
 import { logger } from "@repo/node-utils/framework/logger";
-import { UserManagement } from "@repo/node-utils/services/catalyst/user-management";
+import { UserManagement } from "@repo/node-utils/catalyst/user-management";
 import { CatalystError } from "@repo/node-utils/errors/catalyst-error";
 import { randomUUID } from "crypto";
 import { zcAuth } from "@zcatalyst/auth";
@@ -40,18 +40,26 @@ export function recordRequestTiming(
   next();
 }
 
-/** Establishes the execution context for the request and runs the chain inside it. */
-export const initExecutionContext: RequestHandler = (req, _res, next) => {
+/** Establishes the execution context for the request and runs the chain inside it. Catalyst
+ *  starts empty - a route that needs it mounts `initCatalystScopes`. */
+export const initExecutionContext: RequestHandler = (_req, _res, next) => {
+  const context = new ExecutionContext({
+    executionId: randomUUID(),
+    catalyst: new Catalyst(),
+    extras: {},
+  });
+  runWithContext(context, next);
+};
+
+/** Builds the Catalyst app for each listed scope, and only those, for the route it guards. */
+export function initCatalystScopes(scopes: CatalystScope[]): RequestHandler {
   // Catalyst reads both the project details and the caller's credentials off the headers,
   // so the apps are per-request and nothing needs to be configured in the environment.
-  // A scope that fails - User, when the request carries no signed-in user - is left unset
-  // and only fails the request if something asks for it. `init` loads its implementation
-  // through a dynamic import, so it must be awaited.
-  const catalyst = new Catalyst();
-  const context = new ExecutionContext({ executionId: randomUUID(), catalyst, extras: {} });
-  return runWithContext(context, async () => {
+  // `init` loads its implementation through a dynamic import, so it must be awaited.
+  return async (req, _res, next) => {
+    const catalyst = currentContext().manager.catalyst;
     await Promise.all(
-      Object.values(CatalystScope).map(async (scope) => {
+      scopes.map(async (scope) => {
         try {
           catalyst.setApp(
             scope,
@@ -59,12 +67,16 @@ export const initExecutionContext: RequestHandler = (req, _res, next) => {
           );
         } catch (cause) {
           logger.info(`No ${scope}-scope Catalyst app: ${String(cause)}`);
+          if (scope === CatalystScope.User) {
+            throw HttpError.Unauthorized("Sign in to continue.");
+          }
+          throw cause;
         }
       }),
     );
     next();
-  });
-};
+  };
+}
 
 /** Rejects a request whose credentials do not resolve to a Catalyst app user. The user is
  *  memoized on the context, so handlers asking again later cost no second lookup. */

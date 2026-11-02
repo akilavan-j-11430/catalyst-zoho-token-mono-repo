@@ -1,6 +1,6 @@
 # Catalyst SDK access
 
-Every Catalyst SDK call goes through `packages/node-utils/src/services/catalyst/`. No
+Every Catalyst SDK call goes through `packages/node-utils/src/catalyst/`. No
 `@zcatalyst/*` package may be imported anywhere else, and ESLint enforces it.
 
 One file per component - `bucket.ts`, `table.ts`, `zcql.ts`, `cache.ts`, `job.ts` - plus
@@ -9,7 +9,7 @@ it needs itself, in a module-private accessor at the top of the file, and reache
 app nowhere else:
 
 ```ts
-// packages/node-utils/src/services/catalyst/bucket.ts
+// packages/node-utils/src/catalyst/bucket.ts
 import { Stratus } from "@zcatalyst/stratus";
 import type { CatalystScope } from "@/enums/catalyst-scope";
 import { currentContext } from "@/framework/async-context";
@@ -29,11 +29,11 @@ module scope, in `resources.ts` - one `export const` per Catalyst resource this 
 and the only place a wrapper is ever constructed:
 
 ```ts
-// packages/node-utils/src/services/catalyst/resources.ts
-import { Bucket } from "@/services/catalyst/bucket";
-import { Cache } from "@/services/catalyst/cache";
-import { Job } from "@/services/catalyst/job";
-import { Table } from "@/services/catalyst/table";
+// packages/node-utils/src/catalyst/resources.ts
+import { Bucket } from "@/catalyst/bucket";
+import { Cache } from "@/catalyst/cache";
+import { Job } from "@/catalyst/job";
+import { Table } from "@/catalyst/table";
 
 export const todoTable = Table.create<{
   TITLE: string;
@@ -55,7 +55,7 @@ for a resource that already has one:
 
 ```ts
 import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
-import { todoTable } from "@repo/node-utils/services/catalyst/resources";
+import { todoTable } from "@repo/node-utils/catalyst/resources";
 
 const todo = await todoTable.runIn(CatalystScope.User).getRow(rowId);
 ```
@@ -171,10 +171,12 @@ files - so check it when reviewing a wrapper.
 User scope covers only the methods the browser SDK exposes
 (https://docs.catalyst.zoho.com/en/sdk/javascript/v1/webpack-bundler/#browser-supported-javascript-methods);
 everything else needs Admin. So the context carries a `Catalyst` (`catalyst.ts`) holding one
-app per `CatalystScope`, and `initExecutionContext` builds every scope from the request's
-headers. A scope that cannot be built - User, when the request carries no signed-in user -
-is left unset, and `getApp(scope)` throws `CatalystError` with `SCOPE_UNAVAILABLE` only when
-something asks for it.
+app per `CatalystScope`. It starts empty: a route that calls Catalyst mounts
+`initCatalystScopes([...])` (`apps/api/src/middleware.ts`), which builds only the scopes it
+names from the request's headers, so a route that never touches Catalyst never pays for an
+init. A named scope that cannot be built fails the request - User, when the request carries
+no signed-in user, is a 401. A scope the route did not name is never built, and
+`getApp(scope)` throws `CatalystError` with `SCOPE_UNAVAILABLE` when something asks for it.
 
 Use User unless the method is missing from the browser list. Cache is admin-only.
 
@@ -231,7 +233,7 @@ does not "optimise" a call that is load-bearing.
 
 ## Writing a wrapper
 
-One file per component, flat under `services/catalyst/`. A wrapper exists to give this
+One file per component, flat under `catalyst/`. A wrapper exists to give this
 repo's vocabulary to a Catalyst call, so:
 
 - Take and return plain values - `string`, `Readable`, a domain type. Never hand an SDK
@@ -248,7 +250,7 @@ repo's vocabulary to a Catalyst call, so:
 **When a route needs something the wrapper does not do yet, add the method to the
 wrapper.** Never reach past it - not to the SDK, not to the app on the context, not with
 a one-off client built at the call site. The ESLint boundary stops the import, but the
-rule is about intent: the point of `services/catalyst/` is that one directory answers
+rule is about intent: the point of `catalyst/` is that one directory answers
 what this repo asks of Catalyst, and a capability used from a route is invisible there.
 
 So `listObject` on `Bucket`, `getPagedRows` on `Table`, `submitOneTimeCron` on `Job` -
@@ -256,7 +258,7 @@ each arrived because something needed it. Add the next one the same way, followi
 rules above, and call it from the route:
 
 ```ts
-// packages/node-utils/src/services/catalyst/bucket.ts - on ScopedBucket
+// packages/node-utils/src/catalyst/bucket.ts - on ScopedBucket
 async copyObject(sourceKey: string, targetKey: string): Promise<void> {
   ...
 }

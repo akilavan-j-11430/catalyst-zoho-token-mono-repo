@@ -5,7 +5,7 @@ import tseslint from "typescript-eslint";
 const USE_HTTP_CLIENT =
   "Use HttpClient from @repo/node-utils/http/http-client. See .claude/rules/outbound-http.md.";
 const USE_CATALYST_PACKAGE =
-  "Call Catalyst through @repo/node-utils/services/catalyst/*. See .claude/rules/catalyst-sdk.md.";
+  "Call Catalyst through @repo/node-utils/catalyst/*. See .claude/rules/catalyst-sdk.md.";
 
 // Exact specifiers, not patterns: a "http" pattern is glob-matched and would also
 // reject every import under an http/ directory.

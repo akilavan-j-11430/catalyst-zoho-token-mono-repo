@@ -160,14 +160,14 @@ Topic rules live one-per-file in `.claude/rules/` and load automatically: `catal
 covers every Catalyst call and how few of them a solution makes, `outbound-http.md` every
 call to a service outside this repo, `web-data-access.md` every call the browser makes to
 our own API and every form that collects one, `environment.md` every environment
-variable, `zoho-token.md` every Zoho access token, `typography.md` every font. Add a file
-there rather than growing this one, and give it `paths:` frontmatter if it only applies to
-part of the tree.
+variable, `zoho-token.md` every Zoho access token, `typography.md` every font,
+`code-design.md` every class and the pattern it follows. Add a file there rather than
+growing this one, and give it `paths:` frontmatter if it only applies to part of the tree.
 
 - `@/*` resolves to `./src/*` in every workspace. Use it instead of `../../`.
 - Shared packages expose subpaths, not a barrel: `@repo/types/api`, `@repo/routing/api-path`,
   `@repo/node-utils/framework/logger`, `@repo/node-utils/framework/async-context`,
-  `@repo/node-utils/services/catalyst/resources`, `@repo/node-utils/utils/env`.
+  `@repo/node-utils/catalyst/resources`, `@repo/node-utils/utils/env`.
 - File names are kebab-case: `http-error.ts`, `async-context.ts`.
 - Identifiers and JSON keys are camelCase: `emailId`, `nextPageToken`. The exception is
   a wire shape a vendor defines - Catalyst sends `email_id`, `job_name`, `ROWID` - which
@@ -176,8 +176,8 @@ part of the tree.
 - **A file earns its existence from a second caller or from a boundary, not from
   tidiness.** Something used in exactly one place lives where it is used; split it out
   when the second caller arrives, and let that caller tell you what the shape should be.
-  The exception is a seam - `services/catalyst/`, `services/api/client.ts`,
-  `endpoints.ts` - which exists so that everything passes through one place. A seam is
+  The exception is a seam - `catalyst/`, `services/api/client.ts` - which exists so
+  that everything passes through one place. A seam is
   right at one caller, because being the only route through is its whole job. Everything
   else - a validation rule, a formatter, a resolver - is not.
 - `packages/*` are ESM; root and `apps/api` are CommonJS. The split is source-only -
@@ -195,7 +195,7 @@ part of the tree.
 In `apps/web`:
 
 - Reach `apps/api` through `src/services/` - one file per domain, built on
-  `src/services/api/` (`client.ts` for transport, `endpoints.ts` for every path). No
+  `src/services/api/client.ts` for transport, with every path built from `ApiPath`. No
   `fetch` and no URL in a component.
 - Server state is react-query, form state is react-hook-form. Both are installed; neither
   gets re-implemented with `useState`.
@@ -207,7 +207,7 @@ In `apps/web`:
 In `apps/api`:
 
 - Reach Catalyst through a resource handle imported from
-  `@repo/node-utils/services/catalyst/resources`, where every table, bucket, cache segment
+  `@repo/node-utils/catalyst/resources`, where every table, bucket, cache segment
   and job is declared once with the wrapper's `create` factory. Never construct a wrapper
   in a handler, never initialize Catalyst yourself, and never read the app off the context
   - see `.claude/rules/catalyst-sdk.md`.
@@ -232,7 +232,9 @@ In `apps/api`:
 **An API route** - follow `src/routes/ping.ts`: export a `Router` with the explicit
 `: Router` annotation, use the response builders, add its segments to `ApiPath`
 (`packages/routing`), then mount it in `src/routes/api-router.ts` under its own segment.
-That file is the only place a router mounts, so `src/index.ts` never changes.
+That file is the only place a router mounts, so `src/index.ts` never changes. A route that
+calls Catalyst mounts `initCatalystScopes([...])` (`src/middleware.ts`) ahead of its handler,
+naming the scopes it uses - `router.use` it instead when every route on the router needs them.
 
 **An AppSail app** - copy `apps/api` as the shape. Four things must agree:
 `scripts/bundle.mjs` (output `appsails/<name>/`), `app-config.json`, the `catalyst.json`

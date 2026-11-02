@@ -77,10 +77,12 @@ request, so a router that uses a connection mounts
 their row, Admin for Catalyst Cache (admin-only) and that delete. `zohoTokenRouter` does
 this once for all of its routes.
 
-The `ZohoConnection` table's App User scope is **USER**: a signed-in user sees only the
-rows their own credentials created. So the insert in `persistToken` is always User scope,
-whatever the grant, and changing the table back to GLOBAL would let any app user read
-every refresh token from the browser SDK.
+The `ZohoConnection` table is read and written only through `ZohoConnectionRepository`
+(`@repo/node-utils/repositories/zoho-connection-repository`), the one file that names its
+columns. Its App User scope is **USER**: a signed-in user sees only the rows their own
+credentials created. So `ZohoConnectionRepository.insert` is always User scope, whatever the
+grant, and changing the table back to GLOBAL would let any app user read every refresh token
+from the browser SDK.
 
 A job has no signed-in user, so it names one **before any other Zoho call**:
 

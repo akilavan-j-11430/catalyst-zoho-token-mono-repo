@@ -22,7 +22,9 @@ signed-in Catalyst user and kept until the user disconnects or Zoho rejects it.
 `/api/v1/zoho-token/{connect,callback,status,disconnect}` in `apps/api`, the refresh token
 in the `ZohoConnection` table, the access token minted on demand and held in an
 in-memory LRU over Catalyst Cache. The services are
-`packages/node-utils/src/services/zoho/`; `.claude/rules/zoho-token.md` is how to use them.
+`packages/node-utils/src/services/zoho/`, the table's only reader is
+`packages/node-utils/src/repositories/zoho-connection-repository.ts`, and
+`.claude/rules/zoho-token.md` is how to use them.
 
 Everything else is still bare plumbing, so most other tasks mean adding the *first*
 thing of their kind - the first bucket, the first job, the first shared model. Extend

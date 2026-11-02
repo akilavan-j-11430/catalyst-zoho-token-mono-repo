@@ -6,7 +6,6 @@ import {
   ZohoAuthError,
 } from "@/errors/zoho-auth-error";
 import { HttpClient } from "@/http/http-client";
-import type { ResponseBody } from "@/types/http";
 import { PLimit } from "@/utils/p-limit";
 
 /** What identifies this application to Zoho. Supplied by the app that owns the keys. */
@@ -163,14 +162,19 @@ export class ZohoAccounts {
     credentials: ZohoCredentials,
     refreshToken: string,
   ): Promise<void> {
-    await ZohoAccounts.send(
-      credentials,
-      "/oauth/v2/token/revoke",
-      new URLSearchParams({ token: refreshToken }),
-      async () => undefined,
-    );
+    const form = new URLSearchParams({ token: refreshToken });
+    try {
+      await accountsRequests.run(() =>
+        ZohoAccounts.client(credentials).post("/oauth/v2/token/revoke", form),
+      );
+    } catch (cause) {
+      throw cause instanceof HttpRequestError ? toAuthError(cause) : cause;
+    }
   }
 
+  /** A URLSearchParams body reaches the wire untouched as form-urlencoded; an object would
+   *  be serialized as JSON, which these endpoints reject. The response is decoded inside
+   *  the same catch, so one that fails to decode is mapped like any other failure. */
   private static async requestToken(
     credentials: ZohoCredentials,
     fields: Record<string, string>,
@@ -180,32 +184,17 @@ export class ZohoAccounts {
       client_id: credentials.clientId,
       client_secret: credentials.clientSecret,
     });
-    return ZohoAccounts.send(
-      credentials,
-      "/oauth/v2/token",
-      form,
-      async (body) => toTokenResponse(await body.json()),
-    );
+    try {
+      const { body } = await accountsRequests.run(() =>
+        ZohoAccounts.client(credentials).post("/oauth/v2/token", form),
+      );
+      return toTokenResponse(await body.json());
+    } catch (cause) {
+      throw cause instanceof HttpRequestError ? toAuthError(cause) : cause;
+    }
   }
 
-  /** A URLSearchParams body reaches the wire untouched as form-urlencoded. Passing an
-   *  object instead would serialize it as JSON, which these endpoints reject. `read` runs
-   *  inside the same catch, so a body that fails to decode is mapped like any failure. */
-  private static async send<T>(
-    credentials: ZohoCredentials,
-    path: string,
-    form: URLSearchParams,
-    read: (body: ResponseBody) => Promise<T>,
-  ): Promise<T> {
-    const client = new HttpClient({ baseUrl: credentials.accountsUrl });
-    try {
-      const { body } = await accountsRequests.run(() => client.post(path, form));
-      return await read(body);
-    } catch (cause) {
-      if (cause instanceof HttpRequestError) {
-        throw toAuthError(cause);
-      }
-      throw cause;
-    }
+  private static client(credentials: ZohoCredentials): HttpClient {
+    return new HttpClient({ baseUrl: credentials.accountsUrl });
   }
 }

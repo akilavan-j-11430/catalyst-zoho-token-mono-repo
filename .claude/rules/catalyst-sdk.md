@@ -164,9 +164,10 @@ A statement returns at most 300 rows, so a read that can exceed that pages with
 single one, so it is static and starts from `runIn` -
 `Zcql.runIn(CatalystScope.User).executeQuery("SELECT ...")`.
 
-`resources.ts` exists and declares two: `zohoConnectionTable` for the `ZohoConnection` table
-and `zohoConnectionCache` for the project's default cache segment, which holds minted Zoho access
-tokens. The OAuth consent state is signed, not stored, so it costs no cache call.
+`resources.ts` exists and declares two: `zohoConnectionTable` for the `ZohoConnection` table,
+imported only by `repositories/zoho-connection-repository.ts`, and `zohoConnectionCache` for
+the project's default cache segment, which holds minted Zoho access tokens. The OAuth consent
+state is signed, not stored, so it costs no cache call.
 
 ## A handle is hoisted, a client is not
 
@@ -204,6 +205,7 @@ holds a name and exposes only `runIn(scope)`, which returns the scoped operation
 default, so every call names whose credentials it uses:
 
 ```ts
+// packages/node-utils/src/repositories/zoho-connection-repository.ts
 await zohoConnectionTable.runIn(CatalystScope.User).insertRow(row);
 await Zcql.runIn(CatalystScope.Admin).executeQuery("SELECT ...");
 ```

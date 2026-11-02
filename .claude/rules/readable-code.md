@@ -29,10 +29,15 @@ function toRegisteredUser(details: RegisteredUserDetails): RegisteredUser {
   It cannot split a word with no separator - `CREATEDTIME` becomes `createdtime` - so
   Catalyst table rows are mapped field by field in their repository instead.
 - ESLint enforces it (`@typescript-eslint/naming-convention`, from `@repo/eslint-config`).
-  The vendor seams are exempt through `allowVendorCasing(files)` - `catalyst/`,
-  `repositories/` and `services/zoho/accounts.ts` in `node-utils`, `src/catalyst/` in
-  `apps/web`, plus `apps/api`'s `env.ts` and `catalyst-logger.ts`. A key that needs quotes
-  (`"content-type"`, `"--width"`) is a wire string and is never checked. Add a file to the exemption only when it is a seam.
+  The vendor seams are exempt through `allowVendorNames(files)` - `catalyst/`,
+  `repositories/` and `services/zoho/accounts.ts` in `node-utils`, plus `apps/api`'s `env.ts`
+  and `catalyst-logger.ts` - and so are two tests, `case-conversion`'s `camel-case.test.ts`
+  and `node-utils`' `env.test.ts`, whose inputs are vendor-cased. `apps/web` builds on Next's
+  config instead and leaves `src/catalyst/` out of the rule's `files` with `ignores`. A key
+  that needs quotes (`"content-type"`, `"--width"`) is a wire string and is never checked.
+  Add a file to the exemption only when it is a seam, or a test whose input is the vendor's
+  casing - the converter's fixtures, an environment variable name - and then name the one
+  file, never a folder. A fake vendor response is written as a JSON string, so it needs none.
 - For an external HTTP call that function is the `toX(await body.json())` at the call site
   - see `outbound-http.md`.
 - For a Catalyst table, the `Row` type in `resources.ts` keeps the column names as Catalyst

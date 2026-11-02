@@ -76,7 +76,7 @@ static and exposes `setLogTimeZone`, which the app calls once at startup with it
 
 ## Adding a variable
 
-Four steps, in order:
+Four steps, in order, and a fifth for a key read at module scope:
 
 1. The key on the app's template in `apps/<app>/src/env.ts`, with a comment saying what it
    is for.
@@ -84,6 +84,10 @@ Four steps, in order:
    in the shell survives turbo's strict env mode.
 3. An entry in `apps/<app>/.env.example` - committed, commented, no value.
 4. The local value in `apps/<app>/.env` - gitignored.
+5. A test value in `test.env` of `apps/<app>/vitest.config.mts`, as for the Zoho client
+   keys `zoho-connections.ts` reads. Tests never see `.env`, so without it every test that
+   imports the app fails at load. A key read per request is stubbed by the test that needs
+   it instead - see `.claude/rules/testing.md`.
 
 Then set it in the Catalyst Console before the next deploy that needs it.
 

@@ -87,6 +87,7 @@ catalyst serve      <- entry point, port assigned by the CLI (3000, 3001, 3002, 
 | `packages/node-utils` | `@repo/node-utils` | - |
 | `packages/typescript-config` | `@repo/typescript-config` | - |
 | `packages/eslint-config` | `@repo/eslint-config` | - |
+| `packages/testing` | `@repo/testing` | - |
 
 **The proxy is never deployed.** It exists only to give local development the single
 origin and auth gate that Catalyst provides natively in the cloud. It appears in
@@ -148,8 +149,9 @@ That drift has already bitten once. TypeScript 6 dropped the automatic injection
 root `package.json` stopped reaching the workspaces - `node:stream`, `process` and `console`
 all went unresolved in `packages/node-utils` under 6.0.3 while 5.9.3 stayed clean. Hence two
 standing rules: every workspace that compiles Node code **declares `@types/node` itself** and
-sets `"types": ["node"]` in its tsconfig (`packages/node-utils`, `apps/api`, `apps/proxy` -
-not `base.json`, which `packages/types` shares and which must stay framework-free). Note that
+sets `"types": ["node"]` in its tsconfig (`packages/node-utils`, `apps/api`, `apps/proxy`,
+`packages/testing`, and `packages/case-conversion` for its tests and Vitest config - not
+`base.json`, which `packages/types` shares and which must stay framework-free). Note that
 a package imported *by name* is unaffected: module resolution still walks up to the workspace
 root. Only ambient type packages, which are never imported, need declaring.
 
@@ -166,14 +168,16 @@ our own API and every form that collects one, `environment.md` every environment
 variable, `zoho-token.md` every Zoho access token, `typography.md` every font,
 `code-design.md` every class and the pattern it follows, `readable-code.md` casing, naming
 and when complexity is worth it, `vendor-boundaries.md` where each vendor is reached and how
-little a migration touches. Add a file there rather than growing this one, and give it
+little a migration touches, `testing.md` where tests live, how Catalyst is faked and what to
+run before calling a change done. Add a file there rather than growing this one, and give it
 `paths:` frontmatter if it only applies to part of the tree.
 
-- `@/*` resolves to `./src/*` in every workspace. Use it instead of `../../`.
+- `@/*` resolves to `./src/*` in every app and every built package. Use it instead of `../../`.
 - Shared packages expose subpaths, not a barrel: `@repo/types/api`, `@repo/routing/api-path`,
   `@repo/case-conversion/camel-case`,
   `@repo/node-utils/framework/logger`, `@repo/node-utils/framework/async-context`,
-  `@repo/node-utils/catalyst/resources`, `@repo/node-utils/utils/env`.
+  `@repo/node-utils/catalyst/resources`, `@repo/node-utils/utils/env`,
+  `@repo/testing/vitest-projects`.
 - File names are kebab-case: `http-error.ts`, `async-context.ts`.
 - Identifiers and JSON keys are camelCase: `emailId`, `nextPageToken`. The exception is
   a wire shape a vendor defines - Catalyst sends `email_id`, `job_name`, `ROWID` - which
@@ -239,7 +243,7 @@ In `apps/api`:
 **An API route** - follow `src/routes/ping.ts`: export a `Router` with the explicit
 `: Router` annotation, use the response builders, add its segments to `ApiPath`
 (`packages/routing`), then mount it in `src/routes/api-router.ts` under its own segment.
-That file is the only place a router mounts, so `src/index.ts` never changes. A route that
+That file is the only place a router mounts, so `src/app.ts` never changes. A route that
 calls Catalyst mounts `initCatalystScopes([...])` (`src/middleware.ts`) ahead of its handler,
 naming the scopes it uses - `router.use` it instead when every route on the router needs them.
 
@@ -254,9 +258,18 @@ handle and maps rows to the domain type. Routes call the repository. See
 entry, and the `--only appsail:<name>` flag in the root `deploy` script.
 
 **A shared package** - `packages/<name>` with `"type": "module"`, the same subpath
-`exports` block as the others, a tsconfig extending `@repo/typescript-config/base.json`,
-`"build": "tsc --build && tsc-alias"`, and an `eslint.config.mjs` re-exporting
-`@repo/eslint-config`. Keep it framework-free: both Express and Next.js consume these.
+`exports` block as the others, a `tsconfig.json` extending
+`@repo/typescript-config/base.json` (no emit, covers `src` and `test`) and a
+`tsconfig.build.json` extending it (`src` only, emits `dist/`),
+`"build": "tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json"`, and an
+`eslint.config.mjs` spreading `@repo/eslint-config` - plus `allowTestsIn([...])` once it has
+tests. A package `apps/web` consumes is
+framework-free and sets `"types": []` - copy `packages/routing` - or `@types/node` from the
+repo root lets Node APIs compile in its `src/`. A server-only package declares `@types/node`
+and `"types": ["node"]` instead - copy `packages/node-utils`. `@repo/testing` is the one
+exception to all of this - see `.claude/rules/testing.md`.
+
+**Tests** - see `.claude/rules/testing.md`. Run `pnpm verify` before calling any change done.
 
 ## Catalyst notes
 

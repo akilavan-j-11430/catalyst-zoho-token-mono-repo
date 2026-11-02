@@ -91,7 +91,11 @@ npm project:
 
 - each `@repo/*` dependency is copied from its built `dist/` into `vendor/<pkg>` and
   installed as `file:./vendor/<pkg>`;
-- a `@repo/*` dev dependency (`@repo/eslint-config`) is dropped - Slate never lints;
+- each `workspace:*` devDependency (`@repo/eslint-config`) is dropped - npm refuses a
+  manifest that names one - and with it `eslint.config.mjs` and the `lint` script, since
+  `next build` never lints and the config would import the dropped package. `next build`
+  does read `tsconfig.json`, so the script stops if a dropped package is named there (a
+  tsconfig preset in `extends`) rather than ship a build that fails on Slate;
 - `packageManager` is npm and a `package-lock.json` is generated beside it;
 - the staged `.catalyst/slate-config.toml` is switched to `npm install` / `npm run build`.
 

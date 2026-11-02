@@ -1,6 +1,6 @@
 # packages/
 
-Shared code for the monorepo. All six are private and consumed as `"workspace:*"`.
+Shared code for the monorepo. All seven are private and consumed as `"workspace:*"`.
 
 | Package | Holds |
 |---|---|
@@ -10,6 +10,7 @@ Shared code for the monorepo. All six are private and consumed as `"workspace:*"
 | `@repo/node-utils` | `ExecutionContext`, `logger`, `env`, `RuntimeError`, `HttpClient`, `PLimit`, `PLimitPerKey`, the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user-management`) plus the resource handles built from them, the table repositories (`ZohoConnectionRepository`), and the Zoho connection (`services/zoho/`) |
 | `@repo/typescript-config` | `base.json` that every tsconfig extends |
 | `@repo/eslint-config` | flat ESLint config: the import boundaries and the camelCase naming rule |
+| `@repo/testing` | `VitestProjects` - the shared Vitest settings; later, any test fake a second workspace needs. Dev-only, never imported from `src/` |
 
 ## Import paths
 
@@ -30,10 +31,16 @@ a new subpath - no `exports` edit needed.
 
 ## Building
 
-Both code packages are ESM (`"type": "module"`) and build with
-`tsc --build && tsc-alias`; `tsc-alias` is what rewrites the internal `@/*` alias in
-the emitted JS. `pnpm dev` at the root runs them in watch mode, so app changes pick up
-package edits without a manual rebuild.
+The code packages are ESM (`"type": "module"`) and build with
+`tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json`; `tsc-alias` is what
+rewrites the internal `@/*` alias in the emitted JS. Each - all but `@repo/testing`, which
+has no build - has two tsconfigs:
+`tsconfig.json` covers `src/`, `test/` and `vitest.config.ts` and never emits - the editor
+and `pnpm typecheck` use it - and `tsconfig.build.json` extends it with `src/` only. Tests
+live in `test/`. Lint rejects one under `src/`, so `pnpm verify` fails before it ships, but
+lint does not gate `build` or `dev`: until it is moved, `tsc` still compiles it into
+`dist/`. `pnpm dev` at the root runs them in watch mode, so app changes pick up package
+edits without a manual rebuild.
 
 Consumers must be built after these. Turborepo handles that via `dependsOn: ["^build"]`.
 
@@ -72,6 +79,15 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 ## A new package
 
 `packages/<name>` with: `"private": true`, `"type": "module"`, the same `exports`
-block, a tsconfig extending `@repo/typescript-config/base.json` with
-`outDir: ./dist` / `rootDir: ./src` / the `@/*` path, and
-`"build": "tsc --build && tsc-alias"`. Then add it to consumers as `"workspace:*"`.
+block, a `tsconfig.json` extending `@repo/typescript-config/base.json` with `noEmit`, the
+`@/*` path and `include: ["src", "test", "vitest.config.ts"]`, a `tsconfig.build.json`
+extending it with `noEmit: false` / `rootDir: ./src` / `outDir: ./dist` /
+`include: ["src"]`, and
+`"build": "tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json"`. Then add
+it to consumers as `"workspace:*"`. `@repo/testing` is the exception: it exports its
+TypeScript sources and has no build - see `.claude/rules/testing.md`.
+
+A package `apps/web` consumes is framework-free, so it also sets `"types": []`: in
+`tsconfig.json`, or in `tsconfig.build.json` only once it has tests that need Node types.
+Without it TypeScript picks up `@types/node` from the repo root, and `process.env` in `src/`
+compiles. `packages/routing` is the template to copy.

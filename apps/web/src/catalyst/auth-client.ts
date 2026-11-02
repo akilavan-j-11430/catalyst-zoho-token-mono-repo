@@ -1,9 +1,9 @@
 import type { Authentication } from "@zcatalyst/auth/web";
 
 export interface SignedInUser {
-  email_id: string;
-  first_name?: string;
-  last_name?: string;
+  emailId: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 let session: Promise<Authentication> | null = null;
@@ -46,9 +46,9 @@ function toSignedInUser(value: unknown): SignedInUser | null {
     return null;
   }
   return {
-    email_id: emailId,
-    first_name: typeof firstName === "string" ? firstName : undefined,
-    last_name: typeof lastName === "string" ? lastName : undefined,
+    emailId,
+    firstName: typeof firstName === "string" ? firstName : undefined,
+    lastName: typeof lastName === "string" ? lastName : undefined,
   };
 }
 

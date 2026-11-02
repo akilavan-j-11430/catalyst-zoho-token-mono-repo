@@ -50,14 +50,16 @@ export const reminderJob = Job.create<{ todoId: string }>({
 ```
 
 **Always `create`, never `new`.** The constructors are private precisely so that this file
-is the only seam. Import the handle wherever it is needed, and never declare a second one
-for a resource that already has one:
+is the only seam. Never declare a second handle for a resource that already has one. A
+table handle is imported only by that table's repository (`vendor-boundaries.md`); a
+bucket, cache or job handle may be imported wherever it is needed:
 
 ```ts
-import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
-import { todoTable } from "@repo/node-utils/catalyst/resources";
+// packages/node-utils/src/repositories/todo-repository.ts
+import { CatalystScope } from "@/enums/catalyst-scope";
+import { todoTable } from "@/catalyst/resources";
 
-const todo = await todoTable.runIn(CatalystScope.User).getRow(rowId);
+const storedTodo = await todoTable.runIn(CatalystScope.User).getRow(todoId);
 ```
 
 It lives here rather than in an app because `apps/api` is one AppSail among however many a

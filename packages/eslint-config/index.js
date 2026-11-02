@@ -45,6 +45,41 @@ function restrictedImports({ allowCatalystSdk = false } = {}) {
   ];
 }
 
+// camelCase for everything this repo names. A vendor's casing (`email_id`, `ROWID`) is
+// allowed only in the files that talk to that vendor - see allowVendorCasing and
+// .claude/rules/readable-code.md.
+const camelCaseNaming = [
+  "error",
+  { selector: "default", format: ["camelCase"], leadingUnderscore: "allow" },
+  { selector: "import", format: ["camelCase", "PascalCase"] },
+  // PascalCase for React components and classes held in a const, UPPER_CASE for constants.
+  {
+    selector: "variable",
+    format: ["camelCase", "PascalCase", "UPPER_CASE"],
+    leadingUnderscore: "allow",
+  },
+  { selector: "function", format: ["camelCase", "PascalCase"] },
+  // Static factories read as constructors: HttpError.BadRequest(...).
+  { selector: "classMethod", modifiers: ["static"], format: ["camelCase", "PascalCase"] },
+  { selector: "typeLike", format: ["PascalCase"] },
+  { selector: "enumMember", format: ["PascalCase", "UPPER_CASE"] },
+  // Static constants on a class follow the UPPER_CASE convention.
+  { selector: "classProperty", modifiers: ["static", "readonly"], format: ["camelCase", "UPPER_CASE"] },
+  { selector: "objectLiteralProperty", format: ["camelCase", "PascalCase", "UPPER_CASE"] },
+  // Header names, CSS variables and other keys that need quotes are wire strings, not our names.
+  { selector: "objectLiteralProperty", modifiers: ["requiresQuotes"], format: null },
+  { selector: "typeProperty", modifiers: ["requiresQuotes"], format: null },
+];
+
+/** The naming rule, for a workspace whose config is not built on this one (apps/web). */
+export const camelCaseNamingRule = { "@typescript-eslint/naming-convention": camelCaseNaming };
+
+/** Lifts the camelCase rule for the vendor seams, where the wire shape keeps the vendor's
+ *  casing until it is mapped. Applied per workspace for the same reason as allowCatalystSdk. */
+export function allowVendorCasing(files) {
+  return { files, rules: { "@typescript-eslint/naming-convention": "off" } };
+}
+
 /**
  * Lifts the Catalyst SDK ban for the given files, keeping every HTTP restriction.
  *
@@ -76,6 +111,7 @@ export default tseslint.config(
         { name: "fetch", message: USE_HTTP_CLIENT },
       ],
       "no-restricted-imports": restrictedImports(),
+      "@typescript-eslint/naming-convention": camelCaseNaming,
     },
   },
   {

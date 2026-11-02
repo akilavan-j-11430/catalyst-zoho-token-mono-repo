@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import { camelCaseNamingRule } from "@repo/eslint-config";
 
 const FETCH_MESSAGE =
   "Call the API through src/services/ - see .claude/rules/web-data-access.md.";
@@ -31,6 +32,14 @@ const eslintConfig = defineConfig([
         { object: "globalThis", property: "fetch", message: FETCH_MESSAGE },
       ],
     },
+  },
+  // camelCase everywhere except src/catalyst/, the seam where the Catalyst web SDK's
+  // `email_id` is read before it is mapped, and the vendored shadcn primitives in
+  // src/components/ui/. See `.claude/rules/readable-code.md`.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/catalyst/**", "src/components/ui/**"],
+    rules: camelCaseNamingRule,
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

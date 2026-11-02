@@ -87,7 +87,6 @@ cleanup on a client disconnect, a handler that fires many times. `res.on("finish
 `apps/api/src/middleware.ts` and `server.on("upgrade")` in `apps/proxy/src/index.ts` are
 that case.
 
-Keep the implementation simple and name each variable for what it holds - `storedRow`,
-`queryResult`, `page` - never `cb`, `fn`, `tmp` or `x`.
+Naming and simplicity are covered in `readable-code.md`.
 
 This is server-side only. React components and hooks are callback-driven by design.

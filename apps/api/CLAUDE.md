@@ -88,19 +88,24 @@ by `initCatalystScopes`), so every route that lists a scope fails - 401 for User
 handler.
 
 Handlers must **not** initialize Catalyst themselves, and must not reach for the app at
-all. Import a resource handle and pick the scope with `runIn` - it reads that scope's app
-off the context for you:
+all. Table data goes through a repository in `packages/node-utils/src/repositories/`, which
+takes and returns domain types - a route never imports a table handle or `Zcql`:
 
 ```ts
-import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
-import { todoTable } from "@repo/node-utils/catalyst/resources";
+import { TodoRepository } from "@repo/node-utils/repositories/todo-repository";
 
-const todo = await todoTable.runIn(CatalystScope.User).getRow(rowId);
+const todo = await TodoRepository.find(req.params.todoId);
 ```
 
-Handles are declared once in `packages/node-utils/src/catalyst/resources.ts`,
-never in a route. `Zcql` is the exception: a query belongs to no single table, so it is
-static - `Zcql.runIn(CatalystScope.User).executeQuery("SELECT ...")`.
+A bucket, cache or job handle is called directly, picking the scope with `runIn` - it reads
+that scope's app off the context for you:
+
+```ts
+await invoiceBucket.runIn(CatalystScope.User).getObject(invoiceKey);
+```
+
+Handles are declared once in `packages/node-utils/src/catalyst/resources.ts`, never in a
+route. See `.claude/rules/vendor-boundaries.md`.
 
 If a handle cannot do what the route needs, **add the method to the wrapper** rather than
 reaching for the SDK here. A single-use method is still the right shape.

@@ -148,6 +148,12 @@ Values this repo's own code reads. Each is a key on the owning app's template - 
 |---|---|---|
 | `AUTH_REDIRECT_URL` | `apps/api` | Where Catalyst sends a new user from the confirmation email. Locally the origin `catalyst serve` prints, usually `http://localhost:3001/`. |
 | `TZ` | `apps/api` | Timezone for log timestamps. Defaults to `Asia/Kolkata`. |
+| `ZOHO_TOKEN_CLIENT_ID` | `apps/api` | Client id of a Server-based client from https://api-console.zoho.com. |
+| `ZOHO_TOKEN_CLIENT_SECRET` | `apps/api` | Its secret. |
+| `ZOHO_TOKEN_SCOPES` | `apps/api` | Comma-separated scopes the consent screen asks for, e.g. `ZohoCRM.modules.ALL,ZohoCRM.settings.READ`. |
+| `ZOHO_TOKEN_ACCOUNTS_URL` | `apps/api` | The DC's accounts server, scheme and all, e.g. `https://accounts.zoho.in`. |
+| `ZOHO_TOKEN_CALLBACK_ORIGIN` | `apps/api` | The origin the Zoho callback is built on, locally the one `catalyst serve` prints. Plus `/api/v1/zoho-token/callback`, it must equal the client's Authorized Redirect URI. |
+| `WEB_APP_ORIGIN` | `apps/api` | The web app's origin. The browser goes back to its home page once the Zoho connection exists. |
 
 These never go in `app-config.json` or any other Catalyst file - that file is committed,
 and `.env` is not. `.claude/rules/environment.md` is the full rule.
@@ -252,7 +258,7 @@ All run from the repo root.
 | `pnpm lint` | `turbo lint` | ESLint in every workspace with code - test files included. |
 | `pnpm typecheck` | `turbo typecheck` | `tsc --noEmit` in every workspace with code, tests included. |
 | `pnpm test:unit` | `turbo test:unit` | Unit tests (`test/unit/` in each tested workspace). No network, Catalyst SDKs mocked. |
-| `pnpm test:integration` | `turbo test:integration` | Integration tests (`test/integration/`): the Express app through Supertest, `HttpClient` against a local server. Catalyst is still faked, so no `catalyst serve`. |
+| `pnpm test:integration` | `turbo test:integration` | Integration tests (`test/integration/`): the Express app through Supertest, `HttpClient` and `ZohoAccounts` against a local server. Catalyst is still faked, so no `catalyst serve`. |
 | `pnpm verify` | `turbo run build lint typecheck test:unit test:integration` | Before calling a change done. Build, lint, typecheck and both test suites in one run - not `bundle`: run that too after a dependency or `scripts/bundle.mjs` change. |
 | `pnpm deploy` | `turbo run bundle && catalyst deploy --only appsail:api,slate:web` | Ship the API and the frontend. The proxy is local only and is intentionally excluded. |
 

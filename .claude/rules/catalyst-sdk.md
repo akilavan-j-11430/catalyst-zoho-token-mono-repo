@@ -243,7 +243,7 @@ the fewest calls that answer the question**, and a review asks how many each pat
   single-row calls is N round trips for one change.
 - **Read once per execution.** Something every call in a request needs - the caller, a
   configuration row - is read once and kept in the execution extras
-  (`manager.setExtras`), the way `currentUserGrant` remembers the caller.
+  (`manager.setExtras`), the way `UserManagement.currentUser` remembers the caller.
 - **Cache before Catalyst Cache.** A value safe to keep across requests sits in an
   in-process LRU first, so a hit costs no call at all; Catalyst Cache is the fallback
   shared across instances. `ZohoConnection`'s minted tokens are the worked example.

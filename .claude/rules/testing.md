@@ -100,6 +100,17 @@ No test reaches Catalyst. What gets faked depends on what is under test:
 |---|---|---|
 | A wrapper in `node-utils/src/catalyst/` | the `@zcatalyst/*` package it calls | `zcql.test.ts` mocks `@zcatalyst/datastore` |
 | A route or middleware in `apps/api` | our wrapper (`@repo/node-utils/catalyst/...`), and `zcAuth.init` | `app.test.ts` mocks `UserManagement` |
+| A repository in `node-utils/src/repositories/` | the `@zcatalyst/*` package, so the real wrappers run and each call's app shows its scope | `zoho-connection-repository.test.ts` mocks `@zcatalyst/datastore` |
+| A service in `node-utils/src/services/` | the repository, resource handles and other services it calls | `connection.test.ts` mocks `ZohoConnectionRepository`, `zohoConnectionCache`, `ZohoAccounts` and `UserManagement` |
+| A route that uses a Zoho connection | the app's connection (`@/zoho-connections`) | `zoho-token.test.ts` mocks `userZohoConnection` |
+
+`apps/api/src/zoho-connections.ts` reads the Zoho client keys at module scope, so importing
+`@/app` needs them before any test runs. `apps/api/vitest.config.mts` sets test values for
+them in `test.env`; a key a route reads per request is stubbed by the test that needs it.
+
+`ZohoConnection` keeps its token caches and grant locks at module level, so they outlive a
+test. `connection.test.ts` gives every test a reference id of its own instead of resetting
+them.
 
 `zcAuth.init` is faked for every test in `apps/api` by `test/setup.ts`, because no test
 request carries the headers `catalyst serve` injects. The setup spreads the real

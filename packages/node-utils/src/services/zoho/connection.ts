@@ -17,8 +17,6 @@ import {
 import { LruCache } from "@/utils/lru-cache";
 import { PLimitPerKey } from "@/utils/p-limit-per-key";
 
-/** Where the signed-in caller's id is kept for the rest of the execution. */
-const REFERENCE_ID_KEY = "zoho.referenceId";
 /** Where `withGrant` keeps the grant for the rest of the execution. */
 const GRANT_SOURCE_KEY = "zoho.grantSource";
 /** Renew five minutes early rather than hand out a token that expires mid-flight. */
@@ -81,16 +79,10 @@ export interface GrantSource {
   getRefreshToken(): Promise<string>;
 }
 
-/** The signed-in caller, looked up once per execution. */
+/** The signed-in caller, looked up once per execution by `UserManagement.currentUser`. */
 export const currentUserGrant: GrantSource = {
   async getReferenceId(): Promise<string> {
-    const manager = currentContext().manager;
-    const known = manager.getExtras<string>(REFERENCE_ID_KEY);
-    if (known !== undefined) {
-      return known;
-    }
     const caller = await UserManagement.currentUser();
-    manager.setExtras(REFERENCE_ID_KEY, caller.userId);
     return caller.userId;
   },
   async getRefreshToken(): Promise<string> {

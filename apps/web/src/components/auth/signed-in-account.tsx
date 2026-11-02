@@ -6,8 +6,8 @@ import { useSignedInUser } from "@/components/auth/auth-gate";
 import { Button } from "@/components/ui/button";
 
 function displayName(user: SignedInUser): string {
-  const full = [user.first_name, user.last_name].filter(Boolean).join(" ");
-  return full === "" ? user.email_id : full;
+  const full = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  return full === "" ? user.emailId : full;
 }
 
 export function SignedInAccount() {
@@ -17,7 +17,7 @@ export function SignedInAccount() {
     <div className="space-y-6">
       <div>
         <p className="text-2xl font-semibold tracking-tight">{displayName(user)}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{user.email_id}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{user.emailId}</p>
       </div>
       <Button
         variant="outline"

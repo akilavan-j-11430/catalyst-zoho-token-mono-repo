@@ -1,13 +1,15 @@
-import { ErrorCode } from "@/enums/error-codes";
 import { CatalystError } from "@/errors/catalyst-error";
 import { Datastore } from "@zcatalyst/datastore";
 import type { CatalystScope } from "@/enums/catalyst-scope";
 import { currentContext } from "@/framework/async-context";
 
-type ZCQLResult = Awaited<ReturnType<Datastore["executeZCQLQuery"]>>;
+/** One table's columns in a ZCQL result row. A query picks its own columns, so no table's
+ *  row type describes them. */
+export type ZcqlColumns = Record<string, unknown>;
 
-/** A ZCQL result row. A query picks its own columns, so no table's row type describes it. */
-export type ZcqlRow = Record<string, unknown>;
+/** A ZCQL result row as Catalyst sends it: each table's columns under that table's name, so
+ *  a column two joined tables share - `ROWID` - is never lost to the other. */
+export type ZcqlRow = Record<string, ZcqlColumns>;
 
 /** Fresh per call. The app is per-request and carries the caller's credentials,
  *  so a service must never be hoisted to module scope.
@@ -18,43 +20,28 @@ function datastore(scope: CatalystScope): Datastore {
   return new Datastore(currentContext().manager.catalyst.getApp(scope));
 }
 
-async function run(
-  scope: CatalystScope,
-  mode: string,
-  query: string,
-  call: (client: Datastore) => Promise<ZCQLResult>,
-): Promise<ZcqlRow[]> {
-  try {
-    const result = await call(datastore(scope));
-    // ZCQL wraps every row as { TableName: { ...columns } }; callers want the columns.
-    return result.map(
-      (row) => Object.assign({}, ...Object.values(row)) as ZcqlRow,
-    );
-  } catch (cause) {
-    throw new CatalystError(
-      ErrorCode.INVALID_RESOURCE,
-      `${mode} failed: ${query}`,
-      cause,
-    );
-  }
-}
-
 /** ZCQL statements bound to a scope. Reached only through `Zcql.runIn`. */
 class ScopedZcql {
   constructor(private readonly scope: CatalystScope) {}
 
-  /** Runs a ZCQL statement and returns rows flattened out of their table wrapper. */
-  executeQuery(query: string): Promise<ZcqlRow[]> {
-    return run(this.scope, "query", query, (client) =>
-      client.executeZCQLQuery(query),
-    );
+  /** Runs a ZCQL statement. Each row keeps its columns under their table's name. */
+  async executeQuery(query: string): Promise<ZcqlRow[]> {
+    try {
+      const queryResult = await datastore(this.scope).executeZCQLQuery(query);
+      return queryResult as ZcqlRow[];
+    } catch (cause) {
+      throw CatalystError.InvalidResource(`query failed: ${query}`, cause);
+    }
   }
 
   /** Same, in OLAP mode - the analytical engine, for aggregates over large scans. */
-  executeOlapQuery(query: string): Promise<ZcqlRow[]> {
-    return run(this.scope, "olap query", query, (client) =>
-      client.executeOLAPQuery(query),
-    );
+  async executeOlapQuery(query: string): Promise<ZcqlRow[]> {
+    try {
+      const queryResult = await datastore(this.scope).executeOLAPQuery(query);
+      return queryResult as ZcqlRow[];
+    } catch (cause) {
+      throw CatalystError.InvalidResource(`olap query failed: ${query}`, cause);
+    }
   }
 }
 

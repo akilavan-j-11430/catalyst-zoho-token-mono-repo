@@ -5,11 +5,13 @@
   "scripts": {
     "dev": "next dev -p 4000",
     "build": "next build",
+    "bundle": "node scripts/bundle.mjs",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@repo/case-conversion": "workspace:*",
     "@repo/routing": "workspace:*",
     "@repo/types": "workspace:*",
     "@tanstack/react-query": "^5.103.2",
@@ -26,6 +28,7 @@
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@types/react": "^19",
     "@types/react-dom": "^19",

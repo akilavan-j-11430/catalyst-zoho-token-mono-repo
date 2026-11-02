@@ -21,6 +21,9 @@
       "cache": true
     },
     "typecheck": {
+      "dependsOn": [
+        "^build"
+      ],
       "cache": true
     },
     "build": {
@@ -35,6 +38,16 @@
     "bundle": {
       "dependsOn": [
         "build"
+      ]
+    },
+    "test:unit": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "test:integration": {
+      "dependsOn": [
+        "^build"
       ]
     }
   }

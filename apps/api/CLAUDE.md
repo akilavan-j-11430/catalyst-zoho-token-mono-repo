@@ -9,7 +9,8 @@ Port: `X_ZOHO_CATALYST_LISTEN_PORT`, else `PORT`, else **8000**.
 
 ```
 src/
-|-- index.ts              app setup, middleware order, route mounting
+|-- index.ts              startup: log timezone, listen on the port
+|-- app.ts                the Express app - middleware order, route mounting
 |-- env.ts                every environment variable this app reads
 |-- zoho-connections.ts   the app's one ZohoConnection, built from env - see .claude/rules/zoho-token.md
 |-- middleware.ts         execution context, request timing, terminal error handler
@@ -20,7 +21,18 @@ src/
 |-- errors/http-error.ts  typed failures that map to HTTP statuses
 |-- utils/api.ts          response builders
 `-- framework/catalyst-logger.ts   console -> Catalyst log pipe, imported for side effect
+test/
+|-- setup.ts              fakes zcAuth.init for every test
+|-- catalyst-auth.ts      catalystAuth - the fake, which a test controls
+|-- unit/                 middleware and helpers, called directly
+`-- integration/          the app from app.ts, driven through Supertest
+vitest.config.mts         .mts because this package is CommonJS; sets the Zoho keys read at load
+tsconfig.json             src + test, no emit - editor and typecheck
+tsconfig.build.json       src only - build
 ```
+
+`app.ts` builds the Express app without a listener, so the integration tests import it
+directly. Tests and how Catalyst is faked: `.claude/rules/testing.md`.
 
 `catalyst-logger` is imported first in `index.ts` purely for its side effect: it
 replaces the `console` methods so logs are framed for Catalyst's collector. It exports
@@ -28,7 +40,7 @@ nothing you should call.
 
 ## Middleware order
 
-From `src/index.ts`, and the order is load-bearing:
+From `src/app.ts`, and the order is load-bearing:
 
 1. `express.json()`
 2. `/api` -> `initExecutionContext`, then `recordRequestTiming`
@@ -36,23 +48,34 @@ From `src/index.ts`, and the order is load-bearing:
 4. `/` -> JSON 404 catch-all
 5. `errorHandler` (terminal)
 
-`index.ts` mounts one router, and `api-router.ts` composes the rest, so a new route
+`app.ts` mounts one router, and `api-router.ts` composes the rest, so a new route
 cannot land below the catch-all and quietly 404. Add it there, not here.
 
 Every path segment is a constant in `ApiPath` (`@repo/routing/api-path`), shared with
 `apps/web`; a full path is their concatenation, `ApiPath.Api + ApiPath.V1`.
 `api-router.ts` mounts each router under its own segment -
 `apiRouter.use(ApiPath.ZohoToken, zohoTokenRouter)` - and the router names only what
-follows it, `ApiPath.Callback`. So a router-level `use`, like the `validateUserAuthentication` on `zohoTokenRouter`, covers
-that router's routes and nothing else.
+follows it, `ApiPath.Callback`. So a router-level `use`, like the `initCatalystScopes` and
+`validateUserAuthentication` on `zohoTokenRouter`, covers that router's routes and nothing
+else.
 
 ## Execution context
 
-`initExecutionContext` (`src/middleware.ts`) calls `zcAuth.init(req, { scope })` from
-`@zcatalyst/auth` once per `CatalystScope` and runs the rest of the chain inside
-`runWithContext`. Catalyst reads the project details and the caller's credentials off the
+`initExecutionContext` (`src/middleware.ts`) gives every `/api` request an execution id and
+an empty `Catalyst`, and runs the rest of the chain inside `runWithContext`. It builds no
+Catalyst app.
+
+A route that calls Catalyst says which scopes it needs, and only those are built:
+
+```ts
+authRouter.post(ApiPath.Register, initCatalystScopes([CatalystScope.Admin]), handler);
+```
+
+`initCatalystScopes` calls `zcAuth.init(req, { scope })` from `@zcatalyst/auth` once per
+listed scope. Catalyst reads the project details and the caller's credentials off the
 request headers, so the apps are per-request and nothing needs configuring in the
-environment.
+environment. A route that names no scope - `ping` - never pays for an init. When every
+route on a router needs the same scopes, `router.use(initCatalystScopes([...]))` once.
 
 Three things about that call are easy to get wrong:
 
@@ -63,31 +86,38 @@ Three things about that call are easy to get wrong:
   `getCurrentUser()` identifies them and App User table permissions apply. An admin-scope
   app acts as the application. The wrapper picks which one it reads with
   `manager.catalyst.getApp(scope)`.
-- **A failed scope does not fail the request.** A request with neither a user token nor a
-  cookie cannot build the User app (`missing user credentials`). That scope is left unset
-  and logged, and `getApp(CatalystScope.User)` throws `CatalystError` (`SCOPE_UNAVAILABLE`)
-  only if something asks for it. `validateUserAuthentication` turns that into a 401.
+- **A listed scope that fails fails the request.** A request with neither a user token nor
+  a cookie cannot build the User app (`missing user credentials`), so a route that lists
+  User answers 401. A scope the route did not list is never built, and a wrapper asking for
+  it throws `CatalystError` (`SCOPE_UNAVAILABLE`) - add the scope to the route's list.
+  `validateUserAuthentication` goes one step further and 401s a User app whose caller does
+  not resolve to an app user.
 
 This is why requests must arrive through `catalyst serve` - only the CLI injects those
-headers. Bypass it and every scope's `zcAuth.init` fails with `app/invalid_project_details`
-(logged by `initExecutionContext`), so the first Catalyst call throws `SCOPE_UNAVAILABLE`,
-which `errorHandler` renders as a generic 500. If every `/api` route is 500ing in dev, that is
-the cause, not your handler.
+headers. Bypass it and every `zcAuth.init` fails with `app/invalid_project_details` (logged
+by `initCatalystScopes`), so every route that lists a scope fails - 401 for User, a generic
+500 for Admin. If every Catalyst-backed route is failing in dev, that is the cause, not your
+handler.
 
 Handlers must **not** initialize Catalyst themselves, and must not reach for the app at
-all. Import a resource handle and pick the scope with `runIn` - it reads that scope's app
-off the context for you:
+all. Table data goes through a repository in `packages/node-utils/src/repositories/`, which
+takes and returns domain types - a route never imports a table handle or `Zcql`:
 
 ```ts
-import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
-import { todoTable } from "@repo/node-utils/services/catalyst/resources";
+import { TodoRepository } from "@repo/node-utils/repositories/todo-repository";
 
-const todo = await todoTable.runIn(CatalystScope.User).getRow(rowId);
+const todo = await TodoRepository.find(req.params.todoId);
 ```
 
-Handles are declared once in `packages/node-utils/src/services/catalyst/resources.ts`,
-never in a route. `Zcql` is the exception: a query belongs to no single table, so it is
-static - `Zcql.runIn(CatalystScope.User).executeQuery("SELECT ...")`.
+A bucket, cache or job handle is called directly, picking the scope with `runIn` - it reads
+that scope's app off the context for you:
+
+```ts
+await invoiceBucket.runIn(CatalystScope.User).getObject(invoiceKey);
+```
+
+Handles are declared once in `packages/node-utils/src/catalyst/resources.ts`, never in a
+route. See `.claude/rules/vendor-boundaries.md`.
 
 If a handle cannot do what the route needs, **add the method to the wrapper** rather than
 reaching for the SDK here. A single-use method is still the right shape.
@@ -173,7 +203,9 @@ execution ID and a per-request order number from the async context.
 
 ## Build
 
-- `pnpm build` - `tsc --build && tsc-alias` into `dist/` (resolves the `@/*` alias).
+- `pnpm build` - `tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json` into
+  `dist/` (resolves the `@/*` alias). `tsconfig.json` covers `src/` and `test/` for the
+  editor and `pnpm typecheck` and never emits.
 - `pnpm bundle` - `scripts/bundle.mjs` esbuilds `src/index.ts` into `appsails/api/`.
 
 The bundle script reads `package.json`, strips every `@repo/*` dependency from the

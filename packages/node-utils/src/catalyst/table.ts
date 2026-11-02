@@ -1,4 +1,3 @@
-import { ErrorCode } from "@/enums/error-codes";
 import { CatalystError } from "@/errors/catalyst-error";
 import { Datastore } from "@zcatalyst/datastore";
 import type { CatalystScope } from "@/enums/catalyst-scope";
@@ -37,7 +36,8 @@ export type RowUpdate<Row> = Partial<Row> & Pick<SystemColumns, "ROWID">;
 /** A column a ZCQL statement may name: a declared one or a system one. */
 export type ColumnName<Row> = Extract<keyof Row | keyof SystemColumns, string>;
 
-/** A Data Store table bound to a scope. Reached only through `Table.runIn`. */
+/** A Data Store table bound to a scope. Reached only through `Table.runIn`. Each method
+ *  casts the SDK's untyped rows to this table's declared row. */
 class ScopedTable<Row extends object> {
   constructor(
     private readonly name: string,
@@ -48,34 +48,24 @@ class ScopedTable<Row extends object> {
     return datastore(this.scope).table(this.name);
   }
 
-  /** The one place the SDK's untyped rows become this table's declared row. */
-  private async run<T>(
-    operation: string,
-    call: () => Promise<unknown>,
-  ): Promise<T> {
+  /** Inserts one row and returns it with ROWID/CREATEDTIME populated. */
+  async insertRow(row: Row): Promise<StoredRow<Row>> {
     try {
-      return (await call()) as T;
+      const storedRow = await this.table().insertRow(row as SdkRowInput);
+      return storedRow as unknown as StoredRow<Row>;
     } catch (cause) {
-      throw new CatalystError(
-        ErrorCode.INVALID_RESOURCE,
-        `${operation} failed on ${this.name}`,
-        cause,
-      );
+      throw CatalystError.InvalidResource(`insertRow failed on ${this.name}`, cause);
     }
   }
 
-  /** Inserts one row and returns it with ROWID/CREATEDTIME populated. */
-  insertRow(row: Row): Promise<StoredRow<Row>> {
-    return this.run("insertRow", () =>
-      this.table().insertRow(row as SdkRowInput),
-    );
-  }
-
   /** Inserts multiple rows and returns them with ROWID/CREATEDTIME populated. */
-  insertRows(rows: Row[]): Promise<StoredRow<Row>[]> {
-    return this.run("insertRows", () =>
-      this.table().insertRows(rows as SdkRowInput[]),
-    );
+  async insertRows(rows: Row[]): Promise<StoredRow<Row>[]> {
+    try {
+      const storedRows = await this.table().insertRows(rows as SdkRowInput[]);
+      return storedRows as unknown as StoredRow<Row>[];
+    } catch (cause) {
+      throw CatalystError.InvalidResource(`insertRows failed on ${this.name}`, cause);
+    }
   }
 
   /** Fetches one row by ROWID; undefined when it does not exist. */
@@ -98,38 +88,54 @@ class ScopedTable<Row extends object> {
   async getPagedRows(
     options: { nextToken?: string; maxRows?: number } = {},
   ): Promise<{ rows: StoredRow<Row>[]; nextToken?: string; hasMore: boolean }> {
-    const page = await this.run<
-      Omit<SdkRowPage, "data"> & { data: StoredRow<Row>[] }
-    >("getPagedRows", () => this.table().getPagedRows(options));
-    return {
-      rows: page.data,
-      nextToken: page.next_token,
-      hasMore: page.more_records === true,
-    };
+    try {
+      const page: SdkRowPage = await this.table().getPagedRows(options);
+      return {
+        rows: page.data as unknown as StoredRow<Row>[],
+        nextToken: page.next_token,
+        hasMore: page.more_records === true,
+      };
+    } catch (cause) {
+      throw CatalystError.InvalidResource(`getPagedRows failed on ${this.name}`, cause);
+    }
   }
 
   /** Updates one row. The row must carry its ROWID. */
-  updateRow(row: RowUpdate<Row>): Promise<StoredRow<Row>> {
-    return this.run("updateRow", () =>
-      this.table().updateRow(row as SdkRowUpdate),
-    );
+  async updateRow(row: RowUpdate<Row>): Promise<StoredRow<Row>> {
+    try {
+      const storedRow = await this.table().updateRow(row as SdkRowUpdate);
+      return storedRow as unknown as StoredRow<Row>;
+    } catch (cause) {
+      throw CatalystError.InvalidResource(`updateRow failed on ${this.name}`, cause);
+    }
   }
 
   /** Updates multiple rows. Every row must carry its ROWID. */
-  updateRows(rows: RowUpdate<Row>[]): Promise<StoredRow<Row>[]> {
-    return this.run("updateRows", () =>
-      this.table().updateRows(rows as SdkRowUpdate[]),
-    );
+  async updateRows(rows: RowUpdate<Row>[]): Promise<StoredRow<Row>[]> {
+    try {
+      const storedRows = await this.table().updateRows(rows as SdkRowUpdate[]);
+      return storedRows as unknown as StoredRow<Row>[];
+    } catch (cause) {
+      throw CatalystError.InvalidResource(`updateRows failed on ${this.name}`, cause);
+    }
   }
 
   /** Deletes one row by ROWID. */
   async deleteRow(rowId: string): Promise<void> {
-    await this.run("deleteRow", () => this.table().deleteRow(rowId));
+    try {
+      await this.table().deleteRow(rowId);
+    } catch (cause) {
+      throw CatalystError.InvalidResource(`deleteRow failed on ${this.name}`, cause);
+    }
   }
 
   /** Deletes multiple rows by ROWID. */
   async deleteRows(rowIds: string[]): Promise<void> {
-    await this.run("deleteRows", () => this.table().deleteRows(rowIds));
+    try {
+      await this.table().deleteRows(rowIds);
+    } catch (cause) {
+      throw CatalystError.InvalidResource(`deleteRows failed on ${this.name}`, cause);
+    }
   }
 }
 

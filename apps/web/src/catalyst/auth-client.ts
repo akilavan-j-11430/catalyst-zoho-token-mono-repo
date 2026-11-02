@@ -1,9 +1,10 @@
 import type { Authentication } from "@zcatalyst/auth/web";
+import { CamelCase } from "@repo/case-conversion/camel-case";
 
 export interface SignedInUser {
-  email_id: string;
-  first_name?: string;
-  last_name?: string;
+  emailId: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 let session: Promise<Authentication> | null = null;
@@ -38,17 +39,14 @@ function toSignedInUser(value: unknown): SignedInUser | null {
   if (typeof value !== "object" || value === null) {
     return null;
   }
-  const { email_id: emailId, first_name: firstName, last_name: lastName } = value as Record<
-    string,
-    unknown
-  >;
+  const { emailId, firstName, lastName } = CamelCase.convertKeys(value as Record<string, unknown>);
   if (typeof emailId !== "string" || emailId === "") {
     return null;
   }
   return {
-    email_id: emailId,
-    first_name: typeof firstName === "string" ? firstName : undefined,
-    last_name: typeof lastName === "string" ? lastName : undefined,
+    emailId,
+    firstName: typeof firstName === "string" ? firstName : undefined,
+    lastName: typeof lastName === "string" ? lastName : undefined,
   };
 }
 

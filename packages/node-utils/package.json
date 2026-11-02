@@ -9,10 +9,12 @@
   "author": "",
   "license": "ISC",
   "scripts": {
-    "dev": "tsc --build && concurrently -n tsc,alias \"tsc --build --watch --preserveWatchOutput\" \"tsc-alias --watch\"",
-    "build": "tsc --build && tsc-alias",
+    "dev": "tsc --build tsconfig.build.json && concurrently -n tsc,alias \"tsc --build tsconfig.build.json --watch --preserveWatchOutput\" \"tsc-alias -p tsconfig.build.json --watch\"",
+    "build": "tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration"
   },
   "exports": {
     "./*": {
@@ -23,11 +25,14 @@
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@repo/testing": "workspace:*",
     "@types/node": "^24.13.6",
     "concurrently": "^10.0.5",
-    "eslint": "^9.39.5"
+    "eslint": "^9.39.5",
+    "vitest": "^5.0.5"
   },
   "dependencies": {
+    "@repo/case-conversion": "workspace:*",
     "@repo/types": "workspace:*"
   }
 }

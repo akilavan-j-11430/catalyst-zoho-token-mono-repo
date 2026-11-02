@@ -1,0 +1,20 @@
+{
+  "name": "@repo/testing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.13.6",
+    "eslint": "^9.39.5",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import { camelCaseNamingRule, testFileBan, testToolingBan } from "@repo/eslint-config";
 
 const FETCH_MESSAGE =
   "Call the API through src/services/ - see .claude/rules/web-data-access.md.";
@@ -9,7 +10,7 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   // `src/services/api/client.ts` is the only place that speaks HTTP, the way
-  // `services/catalyst/` is the only place that reaches Catalyst. Prose drifts; this
+  // `catalyst/` is the only place that reaches Catalyst. Prose drifts; this
   // does not.
   // See `.claude/rules/web-data-access.md`.
   {
@@ -32,6 +33,19 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // camelCase everywhere except src/catalyst/, the seam where the Catalyst web SDK's
+  // `email_id` is read before it is mapped, and the vendored shadcn primitives in
+  // src/components/ui/. See `.claude/rules/readable-code.md`.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/catalyst/**", "src/components/ui/**"],
+    rules: camelCaseNamingRule,
+  },
+  // No test runner here yet, so every test file is rejected rather than silently never run.
+  // See `.claude/rules/testing.md`.
+  testFileBan,
+  // Test tooling never ships: the browser bundle must not import it.
+  testToolingBan,
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

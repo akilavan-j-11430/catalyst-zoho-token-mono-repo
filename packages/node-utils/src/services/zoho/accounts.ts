@@ -1,3 +1,4 @@
+import { CamelCase, type CamelCasedKeys } from "@repo/case-conversion/camel-case";
 import { HttpRequestError } from "@/errors/http-request-error";
 import {
   accountsHttpCode,
@@ -5,7 +6,6 @@ import {
   ZohoAuthError,
 } from "@/errors/zoho-auth-error";
 import { HttpClient } from "@/http/http-client";
-import type { ResponseBody } from "@/types/http";
 import { PLimit } from "@/utils/p-limit";
 
 /** What identifies this application to Zoho. Supplied by the app that owns the keys. */
@@ -36,6 +36,8 @@ interface ZohoTokenPayload {
   error?: string;
 }
 
+type ZohoTokenResponse = CamelCasedKeys<ZohoTokenPayload>;
+
 const DEFAULT_EXPIRY_SECONDS = 3600;
 /** Zoho throttles the accounts server; one instance never holds more open than this. */
 const MAX_CONCURRENT_REQUESTS = 10;
@@ -44,21 +46,21 @@ const accountsRequests = new PLimit(MAX_CONCURRENT_REQUESTS);
 
 /** Zoho answers a refused grant with HTTP 200 and an `error` key, so the client's non-2xx
  *  check never fires and the body has to be read. */
-function toPayload(body: unknown): ZohoTokenPayload {
+function toTokenResponse(body: unknown): ZohoTokenResponse {
   if (typeof body !== "object" || body === null) {
     throw new ZohoAuthError(
       ZohoAuthErrorCode.UnreadableResponse,
       "Zoho did not return a JSON object.",
     );
   }
-  const payload = body as ZohoTokenPayload;
-  if (payload.error !== undefined) {
+  const tokenResponse = CamelCase.convertKeys(body as ZohoTokenPayload);
+  if (tokenResponse.error !== undefined) {
     throw new ZohoAuthError(
-      payload.error,
-      `Zoho refused the token request: ${payload.error}`,
+      tokenResponse.error,
+      `Zoho refused the token request: ${tokenResponse.error}`,
     );
   }
-  return payload;
+  return tokenResponse;
 }
 
 /** Nothing but `ZohoAuthError` leaves this file, so a caller handles one error type rather
@@ -112,14 +114,14 @@ export class ZohoAccounts {
     code: string,
     redirectUri: string,
   ): Promise<ZohoGrant> {
-    const payload = await ZohoAccounts.requestToken(credentials, {
+    const tokenResponse = await ZohoAccounts.requestToken(credentials, {
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri,
     });
     if (
-      payload.refresh_token === undefined ||
-      payload.access_token === undefined
+      tokenResponse.refreshToken === undefined ||
+      tokenResponse.accessToken === undefined
     ) {
       throw new ZohoAuthError(
         ZohoAuthErrorCode.MissingRefreshToken,
@@ -127,9 +129,9 @@ export class ZohoAccounts {
       );
     }
     return {
-      refreshToken: payload.refresh_token,
-      accessToken: payload.access_token,
-      expiresInSeconds: payload.expires_in ?? DEFAULT_EXPIRY_SECONDS,
+      refreshToken: tokenResponse.refreshToken,
+      accessToken: tokenResponse.accessToken,
+      expiresInSeconds: tokenResponse.expiresIn ?? DEFAULT_EXPIRY_SECONDS,
     };
   }
 
@@ -138,19 +140,19 @@ export class ZohoAccounts {
     credentials: ZohoCredentials,
     refreshToken: string,
   ): Promise<ZohoAccessToken> {
-    const payload = await ZohoAccounts.requestToken(credentials, {
+    const tokenResponse = await ZohoAccounts.requestToken(credentials, {
       grant_type: "refresh_token",
       refresh_token: refreshToken,
     });
-    if (payload.access_token === undefined) {
+    if (tokenResponse.accessToken === undefined) {
       throw new ZohoAuthError(
         ZohoAuthErrorCode.MissingAccessToken,
         "Zoho returned no access token.",
       );
     }
     return {
-      accessToken: payload.access_token,
-      expiresInSeconds: payload.expires_in ?? DEFAULT_EXPIRY_SECONDS,
+      accessToken: tokenResponse.accessToken,
+      expiresInSeconds: tokenResponse.expiresIn ?? DEFAULT_EXPIRY_SECONDS,
     };
   }
 
@@ -160,49 +162,39 @@ export class ZohoAccounts {
     credentials: ZohoCredentials,
     refreshToken: string,
   ): Promise<void> {
-    await ZohoAccounts.send(
-      credentials,
-      "/oauth/v2/token/revoke",
-      new URLSearchParams({ token: refreshToken }),
-      async () => undefined,
-    );
+    const form = new URLSearchParams({ token: refreshToken });
+    try {
+      await accountsRequests.run(() =>
+        ZohoAccounts.client(credentials).post("/oauth/v2/token/revoke", form),
+      );
+    } catch (cause) {
+      throw cause instanceof HttpRequestError ? toAuthError(cause) : cause;
+    }
   }
 
+  /** A URLSearchParams body reaches the wire untouched as form-urlencoded; an object would
+   *  be serialized as JSON, which these endpoints reject. The response is decoded inside
+   *  the same catch, so one that fails to decode is mapped like any other failure. */
   private static async requestToken(
     credentials: ZohoCredentials,
     fields: Record<string, string>,
-  ): Promise<ZohoTokenPayload> {
+  ): Promise<ZohoTokenResponse> {
     const form = new URLSearchParams({
       ...fields,
       client_id: credentials.clientId,
       client_secret: credentials.clientSecret,
     });
-    return ZohoAccounts.send(
-      credentials,
-      "/oauth/v2/token",
-      form,
-      async (body) => toPayload(await body.json()),
-    );
+    try {
+      const { body } = await accountsRequests.run(() =>
+        ZohoAccounts.client(credentials).post("/oauth/v2/token", form),
+      );
+      return toTokenResponse(await body.json());
+    } catch (cause) {
+      throw cause instanceof HttpRequestError ? toAuthError(cause) : cause;
+    }
   }
 
-  /** A URLSearchParams body reaches the wire untouched as form-urlencoded. Passing an
-   *  object instead would serialize it as JSON, which these endpoints reject. `read` runs
-   *  inside the same catch, so a body that fails to decode is mapped like any failure. */
-  private static async send<T>(
-    credentials: ZohoCredentials,
-    path: string,
-    form: URLSearchParams,
-    read: (body: ResponseBody) => Promise<T>,
-  ): Promise<T> {
-    const client = new HttpClient({ baseUrl: credentials.accountsUrl });
-    try {
-      const { body } = await accountsRequests.run(() => client.post(path, form));
-      return await read(body);
-    } catch (cause) {
-      if (cause instanceof HttpRequestError) {
-        throw toAuthError(cause);
-      }
-      throw cause;
-    }
+  private static client(credentials: ZohoCredentials): HttpClient {
+    return new HttpClient({ baseUrl: credentials.accountsUrl });
   }
 }

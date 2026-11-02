@@ -1,6 +1,6 @@
 # Catalyst SDK access
 
-Every Catalyst SDK call goes through `packages/node-utils/src/services/catalyst/`. No
+Every Catalyst SDK call goes through `packages/node-utils/src/catalyst/`. No
 `@zcatalyst/*` package may be imported anywhere else, and ESLint enforces it.
 
 One file per component - `bucket.ts`, `table.ts`, `zcql.ts`, `cache.ts`, `job.ts` - plus
@@ -9,7 +9,7 @@ it needs itself, in a module-private accessor at the top of the file, and reache
 app nowhere else:
 
 ```ts
-// packages/node-utils/src/services/catalyst/bucket.ts
+// packages/node-utils/src/catalyst/bucket.ts
 import { Stratus } from "@zcatalyst/stratus";
 import type { CatalystScope } from "@/enums/catalyst-scope";
 import { currentContext } from "@/framework/async-context";
@@ -29,11 +29,11 @@ module scope, in `resources.ts` - one `export const` per Catalyst resource this 
 and the only place a wrapper is ever constructed:
 
 ```ts
-// packages/node-utils/src/services/catalyst/resources.ts
-import { Bucket } from "@/services/catalyst/bucket";
-import { Cache } from "@/services/catalyst/cache";
-import { Job } from "@/services/catalyst/job";
-import { Table } from "@/services/catalyst/table";
+// packages/node-utils/src/catalyst/resources.ts
+import { Bucket } from "@/catalyst/bucket";
+import { Cache } from "@/catalyst/cache";
+import { Job } from "@/catalyst/job";
+import { Table } from "@/catalyst/table";
 
 export const todoTable = Table.create<{
   TITLE: string;
@@ -50,14 +50,16 @@ export const reminderJob = Job.create<{ todoId: string }>({
 ```
 
 **Always `create`, never `new`.** The constructors are private precisely so that this file
-is the only seam. Import the handle wherever it is needed, and never declare a second one
-for a resource that already has one:
+is the only seam. Never declare a second handle for a resource that already has one. A
+table handle is imported only by that table's repository (`vendor-boundaries.md`); a
+bucket, cache or job handle may be imported wherever it is needed:
 
 ```ts
-import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
-import { todoTable } from "@repo/node-utils/services/catalyst/resources";
+// packages/node-utils/src/repositories/todo-repository.ts
+import { CatalystScope } from "@/enums/catalyst-scope";
+import { todoTable } from "@/catalyst/resources";
 
-const todo = await todoTable.runIn(CatalystScope.User).getRow(rowId);
+const storedTodo = await todoTable.runIn(CatalystScope.User).getRow(todoId);
 ```
 
 It lives here rather than in an app because `apps/api` is one AppSail among however many a
@@ -136,19 +138,36 @@ ZCQL names columns through the handle, so a typo is a compile error there too:
 const table = todoTable;
 `SELECT COUNT(${table.column("ROWID")}) FROM ${table.name}`             // COUNT(ROWID)
 `SELECT COUNT(${table.qualifiedColumn("ROWID")}) FROM ${table.name}`    // COUNT(Todo.ROWID)
-rows[0]?.[table.column("TITLE")]                                        // read a result
+rows[0]?.[table.name]?.[table.column("TITLE")]                          // read a result
 ```
 
-Use `qualifiedColumn` once a query joins a second table. A ZCQL result is still `ZcqlRow`
-(`Record<string, unknown>`) - a query picks its own columns, so no row type describes it.
+Use `qualifiedColumn` once a query joins a second table. A ZCQL result is a `ZcqlRow` -
+each table's columns under that table's name, exactly as Catalyst sends them, so a column
+two joined tables share (`ROWID`) is never lost to the other. A query picks its own
+columns, so no row type describes them. Two shapes to know: an aggregate's key depends on
+the path - through the SDK `COUNT(ROWID)` reads back as `COUNT(ROWID)`, through the REST API
+(and the MCP) as `ROWID` - so read it by position, never by name, or it silently reads as 0;
+and `DELETE` answers `{ Table: { DELETED_ROWS_COUNT } }`.
+
+```ts
+const [countRow] = await Zcql.runIn(CatalystScope.User).executeQuery(
+  `SELECT COUNT(${table.column("ROWID")}) FROM ${table.name}`,
+);
+const todoCount = Number(Object.values(countRow?.[table.name] ?? {})[0] ?? 0);
+```
+
+A statement returns at most 300 rows, so a read that can exceed that pages with
+`LIMIT <first row>, <count>` - and the first row counts **from 1**: `LIMIT 1, 300`, then
+`LIMIT 301, 300`. A 0-based offset (`LIMIT 300, 300`) reads row 300 twice.
 
 `Zcql` is the exception and has no handle. A query joins across tables and belongs to no
 single one, so it is static and starts from `runIn` -
 `Zcql.runIn(CatalystScope.User).executeQuery("SELECT ...")`.
 
-`resources.ts` exists and declares two: `zohoConnectionTable` for the `ZohoConnection` table
-and `zohoConnectionCache` for the project's default cache segment, which holds minted Zoho access
-tokens. The OAuth consent state is signed, not stored, so it costs no cache call.
+`resources.ts` exists and declares two: `zohoConnectionTable` for the `ZohoConnection` table,
+imported only by `repositories/zoho-connection-repository.ts`, and `zohoConnectionCache` for
+the project's default cache segment, which holds minted Zoho access tokens. The OAuth consent
+state is signed, not stored, so it costs no cache call.
 
 ## A handle is hoisted, a client is not
 
@@ -171,10 +190,12 @@ files - so check it when reviewing a wrapper.
 User scope covers only the methods the browser SDK exposes
 (https://docs.catalyst.zoho.com/en/sdk/javascript/v1/webpack-bundler/#browser-supported-javascript-methods);
 everything else needs Admin. So the context carries a `Catalyst` (`catalyst.ts`) holding one
-app per `CatalystScope`, and `initExecutionContext` builds every scope from the request's
-headers. A scope that cannot be built - User, when the request carries no signed-in user -
-is left unset, and `getApp(scope)` throws `CatalystError` with `SCOPE_UNAVAILABLE` only when
-something asks for it.
+app per `CatalystScope`. It starts empty: a route that calls Catalyst mounts
+`initCatalystScopes([...])` (`apps/api/src/middleware.ts`), which builds only the scopes it
+names from the request's headers, so a route that never touches Catalyst never pays for an
+init. A named scope that cannot be built fails the request - User, when the request carries
+no signed-in user, is a 401. A scope the route did not name is never built, and
+`getApp(scope)` throws `CatalystError` with `SCOPE_UNAVAILABLE` when something asks for it.
 
 Use User unless the method is missing from the browser list. Cache is admin-only.
 
@@ -184,6 +205,7 @@ holds a name and exposes only `runIn(scope)`, which returns the scoped operation
 default, so every call names whose credentials it uses:
 
 ```ts
+// packages/node-utils/src/repositories/zoho-connection-repository.ts
 await zohoConnectionTable.runIn(CatalystScope.User).insertRow(row);
 await Zcql.runIn(CatalystScope.Admin).executeQuery("SELECT ...");
 ```
@@ -221,7 +243,7 @@ the fewest calls that answer the question**, and a review asks how many each pat
   single-row calls is N round trips for one change.
 - **Read once per execution.** Something every call in a request needs - the caller, a
   configuration row - is read once and kept in the execution extras
-  (`manager.setExtras`), the way `currentUserGrant` remembers the caller.
+  (`manager.setExtras`), the way `UserManagement.currentUser` remembers the caller.
 - **Cache before Catalyst Cache.** A value safe to keep across requests sits in an
   in-process LRU first, so a hit costs no call at all; Catalyst Cache is the fallback
   shared across instances. `ZohoConnection`'s minted tokens are the worked example.
@@ -231,7 +253,7 @@ does not "optimise" a call that is load-bearing.
 
 ## Writing a wrapper
 
-One file per component, flat under `services/catalyst/`. A wrapper exists to give this
+One file per component, flat under `catalyst/`. A wrapper exists to give this
 repo's vocabulary to a Catalyst call, so:
 
 - Take and return plain values - `string`, `Readable`, a domain type. Never hand an SDK
@@ -248,7 +270,7 @@ repo's vocabulary to a Catalyst call, so:
 **When a route needs something the wrapper does not do yet, add the method to the
 wrapper.** Never reach past it - not to the SDK, not to the app on the context, not with
 a one-off client built at the call site. The ESLint boundary stops the import, but the
-rule is about intent: the point of `services/catalyst/` is that one directory answers
+rule is about intent: the point of `catalyst/` is that one directory answers
 what this repo asks of Catalyst, and a capability used from a route is invisible there.
 
 So `listObject` on `Bucket`, `getPagedRows` on `Table`, `submitOneTimeCron` on `Job` -
@@ -256,7 +278,7 @@ each arrived because something needed it. Add the next one the same way, followi
 rules above, and call it from the route:
 
 ```ts
-// packages/node-utils/src/services/catalyst/bucket.ts - on ScopedBucket
+// packages/node-utils/src/catalyst/bucket.ts - on ScopedBucket
 async copyObject(sourceKey: string, targetKey: string): Promise<void> {
   ...
 }

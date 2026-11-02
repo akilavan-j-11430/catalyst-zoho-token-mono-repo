@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { Catalyst } from "@/services/catalyst/catalyst";
+import type { Catalyst } from "@/catalyst/catalyst";
 import { RuntimeError } from "@/errors/runtime-error";
 
 /** Per-request values carried on the execution context. */
@@ -62,6 +62,6 @@ export function currentContext(): ExecutionContext {
   return context;
 }
 
-export function runWithContext<T>(context: ExecutionContext, fn: () => T): T {
-  return executionStore.run(context, fn);
+export function runWithContext<T>(context: ExecutionContext, handler: () => T): T {
+  return executionStore.run(context, handler);
 }

@@ -1,4 +1,5 @@
 import { UserManagement as UserManagementClient } from "@zcatalyst/auth";
+import { CamelCase } from "@repo/case-conversion/camel-case";
 import type { NewUser, RegisteredUser } from "@repo/types/user";
 import { CatalystError } from "@/errors/catalyst-error";
 import { CatalystScope } from "@/enums/catalyst-scope";
@@ -16,14 +17,10 @@ function userManagement(scope: CatalystScope): UserManagementClient {
   );
 }
 
+/** Picks only the fields we expose, so the rest of Catalyst's user record never leaks. */
 function toRegisteredUser(details: RegisteredUserDetails): RegisteredUser {
-  return {
-    userId: details.user_id,
-    emailId: details.email_id,
-    firstName: details.first_name,
-    lastName: details.last_name,
-    isConfirmed: details.is_confirmed,
-  };
+  const { userId, emailId, firstName, lastName, isConfirmed } = CamelCase.convertKeys(details);
+  return { userId, emailId, firstName, lastName, isConfirmed };
 }
 
 /** Where the caller is memoized for the rest of the request, alongside `req.startTime`. */

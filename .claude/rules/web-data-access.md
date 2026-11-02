@@ -5,23 +5,26 @@ paths: apps/web/**
 # Reaching the API from the browser
 
 `apps/api` is reached through the service layer, and nowhere else. No `fetch` in a
-component, no URL string outside `endpoints.ts`, no `useState` pair standing in for a
+component, no path that is not built from `ApiPath`, no `useState` pair standing in for a
 request.
 
-Two folders, three jobs, and the split is what keeps a change to any one of them local:
+Two folders, two jobs, and the split is what keeps a change to either one local:
 
 ```
-src/services/<domain>.ts  the calls themselves, typed, one file per domain
-src/services/api/client.ts     transport - one fetch, one envelope, one error type
-src/services/api/endpoints.ts  every path this app calls
+src/services/<domain>.ts     the calls themselves, typed, one file per domain
+src/services/api/client.ts   transport - one fetch, one envelope, one error type
 ```
+
+Paths are not a third job here. Every segment is declared once in `ApiPath`
+(`@repo/routing/api-path`), which `apps/api` mounts and this app calls, so a route moves by
+editing that one value.
 
 `src/services/api/` is plumbing and changes when the transport does - a header, a timeout,
 a move off `fetch`. The files beside it are vocabulary and change when the product does. A
 component imports a domain file and nothing below it; that the call travels over HTTP at
 all is not its business.
 
-It mirrors `packages/node-utils/src/services/catalyst/` on the server side, for the same
+It mirrors `packages/node-utils/src/catalyst/` on the server side, for the same
 reason: one directory should answer what this app asks of the API, and a call made from a
 component is invisible there.
 
@@ -31,7 +34,7 @@ component is invisible there.
 |---|---|
 | a call to a route that already exists | `src/services/<domain>.ts` - the file for that domain |
 | the first call for a new domain | a new `src/services/<domain>.ts` |
-| a path | `src/services/api/endpoints.ts`, nowhere else |
+| a path segment | `ApiPath` in `packages/routing/src/api-path.ts`, nowhere else |
 | something the client cannot express yet - an upload, a retry, a redirect policy | `src/services/api/client.ts` |
 | a header, a timeout, a retry, a move off `fetch` | `src/services/api/client.ts` |
 | query keys, once more than one query exists | `src/services/query-keys.ts` |
@@ -46,9 +49,9 @@ tempting shortcut:
   `.claude/rules/catalyst-sdk.md`: a capability used from a call site but invisible in the
   layer is the thing to avoid. One that turns out to be single-use is still the right
   shape - the client is a seam, and a seam is right at one caller.
-- **A service function never builds a URL.** It names one from `endpoint`. If the path
-  needs an argument, `endpoints.ts` exports a function for it -
-  `byId: (id: string) => ...` - so the shape of the URL stays in one file.
+- **A service function builds its path from `ApiPath` segments**, added together with `+`,
+  and never from a string literal. A value in the path goes through `encodeURIComponent`
+  right there - see below.
 - **A service function never touches react-query**, and a component never touches the
   client. The service is a plain async function; `useQuery`/`useMutation` wrap it at the
   call site. That is what keeps it callable from anywhere and testable with no provider.
@@ -57,26 +60,17 @@ tempting shortcut:
 
 ## Adding a call
 
-Name the path, then the call. A component never sees either:
+Add the segments to `ApiPath`, then the call. A component never sees either.
 
 Paths are relative to the client's `baseUrl` - the `/api` prefix lives on the client, not
 on every path, the way the server's `HttpClient` takes them:
 
 ```ts
-// src/services/api/endpoints.ts
-const segment = (value: string): string => encodeURIComponent(value);
-
-export const endpoint = {
-  auth: { register: "/auth/register" },
-  warranty: {
-    all: "/warranties",
-    byId: (id: string) => `/warranties/${segment(id)}`,
-  },
-} as const;
-
 // src/services/warranty.ts
 export async function fetchWarranty(id: string): Promise<Warranty> {
-  return recordOf<Warranty>(await api.get(endpoint.warranty.byId(id)));
+  return recordOf<Warranty>(
+    await api.get(`${ApiPath.Warranties}/${encodeURIComponent(id)}`),
+  );
 }
 ```
 
@@ -85,24 +79,24 @@ the same response from the same type, so the two cannot drift.
 
 ### A path with an id in it
 
-**A path that takes a value is a function on `endpoint`, and the value goes through
-`segment`.** Not a `"/warranties/:id"` template substituted at the call site, and not a
-template literal built where the call is made.
+**A path that takes a value is built in the service function, which takes the value as a
+typed parameter, and the value goes through `encodeURIComponent`.** Not a
+`"/warranties/:id"` template substituted at the call site.
 
-A function is checked: the compiler knows `byId` needs one string, so a missing or
-misspelled parameter is a compile error rather than a URL reading `/warranties/undefined`.
+The parameter is checked: the compiler knows `fetchWarranty` needs one string, so a missing
+or misspelled argument is a compile error rather than a URL reading `/warranties/undefined`.
 A `:id` template is a string until it reaches the wire, and nothing catches the typo.
 
-`segment` is `encodeURIComponent`, and it is not optional. A ROWID is digits and survives
+`encodeURIComponent` is not optional. A ROWID is digits and survives
 anything, but the moment a path carries an email, a slug or a name, a `/`, `?`, `#` or
 space silently changes which route the server sees - `a/b` becomes two segments, and
-everything after a `#` never leaves the browser. Encoding once inside `endpoints.ts` means
-no call site has to remember.
+everything after a `#` never leaves the browser. Encoding inside the service function means
+no component has to remember.
 
 Values that are **not** part of the path are `query`, not a segment:
 
 ```ts
-await api.get(endpoint.warranty.all, { query: { status: "open", page: 2 } });
+await api.get(ApiPath.Warranties, { query: { status: "open", page: 2 } });
 ```
 
 ## What a call resolves to
@@ -136,7 +130,7 @@ const authed = new ApiClient({
 });
 
 // one call - query, headers, timeoutMs
-await api.get(endpoint.warranty.byId(id), {
+await api.get(`${ApiPath.Warranties}/${encodeURIComponent(id)}`, {
   query: { expand: "lines" },
   headers: { "x-trace": id },
   timeoutMs: 60_000,

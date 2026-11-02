@@ -2,10 +2,10 @@
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
     "types": ["node"],
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "noEmit": true,
     "paths": {
       "@/*": ["./src/*"]
     }
-  }
+  },
+  "include": ["src", "test", "vitest.config.ts"]
 }

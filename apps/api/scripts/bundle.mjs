@@ -46,5 +46,17 @@ await Promise.all([
   copyFile(join(root, "app-config.json"), join(outDir, "app-config.json")),
 ]);
 
-const { stderr } = await execAsync("npm install --omit=dev", { cwd: outDir });
+// `pnpm run` re-exports its config as `npm_config_*`, which npm reads as CLI flags - and
+// npm rejects an inherited `allow-scripts` outright in a project install - so npm gets an
+// environment without them and reads its own config files instead.
+const npmEnv = Object.fromEntries(
+  Object.entries(process.env).filter(
+    ([key]) => !key.toLowerCase().startsWith("npm_config_"),
+  ),
+);
+
+const { stderr } = await execAsync("npm install --omit=dev", {
+  cwd: outDir,
+  env: npmEnv,
+});
 if (stderr) process.stderr.write(stderr);

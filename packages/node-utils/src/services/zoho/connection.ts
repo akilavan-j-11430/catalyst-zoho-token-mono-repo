@@ -6,12 +6,9 @@ import {
 } from "@/errors/zoho-auth-error";
 import { CatalystScope } from "@/enums/catalyst-scope";
 import { currentContext } from "@/framework/async-context";
-import {
-  zohoConnectionCache,
-  zohoConnectionTable,
-} from "@/services/catalyst/resources";
-import { UserManagement } from "@/services/catalyst/user-management";
-import { Zcql } from "@/services/catalyst/zcql";
+import { zohoConnectionCache } from "@/catalyst/resources";
+import { UserManagement } from "@/catalyst/user-management";
+import { ZohoConnectionRepository } from "@/repositories/zoho-connection-repository";
 import {
   ZohoAccounts,
   type ZohoAccessToken,
@@ -20,8 +17,6 @@ import {
 import { LruCache } from "@/utils/lru-cache";
 import { PLimitPerKey } from "@/utils/p-limit-per-key";
 
-/** Where the signed-in caller's id is kept for the rest of the execution. */
-const REFERENCE_ID_KEY = "zoho.referenceId";
 /** Where `withGrant` keeps the grant for the rest of the execution. */
 const GRANT_SOURCE_KEY = "zoho.grantSource";
 /** Renew five minutes early rather than hand out a token that expires mid-flight. */
@@ -84,16 +79,10 @@ export interface GrantSource {
   getRefreshToken(): Promise<string>;
 }
 
-/** The signed-in caller, looked up once per execution. */
+/** The signed-in caller, looked up once per execution by `UserManagement.currentUser`. */
 export const currentUserGrant: GrantSource = {
   async getReferenceId(): Promise<string> {
-    const manager = currentContext().manager;
-    const known = manager.getExtras<string>(REFERENCE_ID_KEY);
-    if (known !== undefined) {
-      return known;
-    }
     const caller = await UserManagement.currentUser();
-    manager.setExtras(REFERENCE_ID_KEY, caller.userId);
     return caller.userId;
   },
   async getRefreshToken(): Promise<string> {
@@ -123,12 +112,11 @@ async function storedRefreshToken(
   referenceId: string,
   scope: CatalystScope,
 ): Promise<string> {
-  const table = zohoConnectionTable;
-  const rows = await Zcql.runIn(scope).executeQuery(
-    `SELECT ${table.column("REFRESH_TOKEN")} FROM ${table.name} WHERE ${table.column("REFERENCE_ID")} = '${referenceId}' LIMIT 1`,
+  const refreshToken = await ZohoConnectionRepository.findRefreshToken(
+    referenceId,
+    scope,
   );
-  const refreshToken = rows[0]?.[table.column("REFRESH_TOKEN")];
-  if (typeof refreshToken !== "string") {
+  if (refreshToken === undefined) {
     throw new ZohoAuthError(
       ZohoAuthErrorCode.NotConnected,
       `No Zoho grant is stored for ${referenceId}.`,
@@ -215,12 +203,7 @@ export class ZohoConnection {
       mintedTokens.set(referenceId, cached);
       return true;
     }
-    return (
-      (await ZohoConnection.storedGrantRowId(
-        referenceId,
-        CatalystScope.User,
-      )) !== undefined
-    );
+    return ZohoConnectionRepository.exists(referenceId, CatalystScope.User);
   }
 
   /** Revokes the grant at Zoho and deletes it here, so the next `/connect` asks for
@@ -302,11 +285,7 @@ export class ZohoConnection {
     redirectUri: string,
   ): Promise<void> {
     this.verifyState(referenceId, state);
-    const stored = await ZohoConnection.storedGrantRowId(
-      referenceId,
-      CatalystScope.User,
-    );
-    if (stored !== undefined) {
+    if (await ZohoConnectionRepository.exists(referenceId, CatalystScope.User)) {
       return;
     }
     const grant = await ZohoAccounts.exchangeCode(
@@ -314,12 +293,7 @@ export class ZohoConnection {
       code,
       redirectUri,
     );
-    // Always User: the table's App User scope is USER, so only the row's creator can
-    // read it back, and the creator has to be the user it belongs to.
-    await zohoConnectionTable.runIn(CatalystScope.User).insertRow({
-      REFERENCE_ID: referenceId,
-      REFRESH_TOKEN: grant.refreshToken,
-    });
+    await ZohoConnectionRepository.insert(referenceId, grant.refreshToken);
     refreshTokens.set(referenceId, grant.refreshToken);
     await ZohoConnection.cacheAccessToken(
       referenceId,
@@ -350,21 +324,6 @@ export class ZohoConnection {
       minted.expiresInSeconds,
     );
     return minted.accessToken;
-  }
-
-  /** The authoritative answer, straight from the datastore. `Table.getRow` is not
-   *  usable here: it takes a ROWID and reports every failure as a missing row, so a
-   *  datastore outage would read as "not connected" and mint a second grant. */
-  private static async storedGrantRowId(
-    referenceId: string,
-    scope: CatalystScope,
-  ): Promise<string | undefined> {
-    const table = zohoConnectionTable;
-    const rows = await Zcql.runIn(scope).executeQuery(
-      `SELECT ${table.column("ROWID")} FROM ${table.name} WHERE ${table.column("REFERENCE_ID")} = '${referenceId}' LIMIT 1`,
-    );
-    const rowId = rows[0]?.[table.column("ROWID")];
-    return typeof rowId === "string" ? rowId : undefined;
   }
 
   /** Mints from the cached refresh token when there is one. A rejection of a cached token
@@ -464,15 +423,11 @@ export class ZohoConnection {
   }
 
   /** Clears the stored grant, both of this process's caches and the Catalyst Cache entry.
-   *  Admin, because a rejected grant is also found by a job, which has no user; safe
-   *  because `referenceId` is always one this connection resolved, never one a request
-   *  supplied. Another AppSail instance may still hold the token in its own LRU until it
-   *  expires; that is at most an hour. */
+   *  The delete runs as Admin, which is safe because `referenceId` is always one this
+   *  connection resolved, never one a request supplied. Another AppSail instance may still
+   *  hold the token in its own LRU until it expires; that is at most an hour. */
   private static async deleteGrant(referenceId: string): Promise<void> {
-    const table = zohoConnectionTable;
-    await Zcql.runIn(CatalystScope.Admin).executeQuery(
-      `DELETE FROM ${table.name} WHERE ${table.column("REFERENCE_ID")} = '${referenceId}'`,
-    );
+    await ZohoConnectionRepository.deleteByReferenceId(referenceId);
     mintedTokens.delete(referenceId);
     refreshTokens.delete(referenceId);
     await zohoConnectionCache.deleteValue(

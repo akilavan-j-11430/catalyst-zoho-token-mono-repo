@@ -22,7 +22,9 @@ signed-in Catalyst user and kept until the user disconnects or Zoho rejects it.
 `/api/v1/zoho-token/{connect,callback,status,disconnect}` in `apps/api`, the refresh token
 in the `ZohoConnection` table, the access token minted on demand and held in an
 in-memory LRU over Catalyst Cache. The services are
-`packages/node-utils/src/services/zoho/`; `.claude/rules/zoho-token.md` is how to use them.
+`packages/node-utils/src/services/zoho/`, the table's only reader is
+`packages/node-utils/src/repositories/zoho-connection-repository.ts`, and
+`.claude/rules/zoho-token.md` is how to use them.
 
 Everything else is still bare plumbing, so most other tasks mean adding the *first*
 thing of their kind - the first bucket, the first job, the first shared model. Extend
@@ -78,12 +80,14 @@ catalyst serve      <- entry point, port assigned by the CLI (3000, 3001, 3002, 
 |---|---|---|
 | `apps/proxy` | `proxy` | **none - local only** |
 | `apps/api` | `api` | AppSail `api` |
-| `apps/web` | `web` | Slate `web` |
+| `apps/web` | `web` | Slate `web` (staged in `slate/web`) |
 | `packages/types` | `@repo/types` | - |
 | `packages/routing` | `@repo/routing` | - |
+| `packages/case-conversion` | `@repo/case-conversion` | - |
 | `packages/node-utils` | `@repo/node-utils` | - |
 | `packages/typescript-config` | `@repo/typescript-config` | - |
 | `packages/eslint-config` | `@repo/eslint-config` | - |
+| `packages/testing` | `@repo/testing` | - |
 
 **The proxy is never deployed.** It exists only to give local development the single
 origin and auth gate that Catalyst provides natively in the cloud. It appears in
@@ -145,8 +149,9 @@ That drift has already bitten once. TypeScript 6 dropped the automatic injection
 root `package.json` stopped reaching the workspaces - `node:stream`, `process` and `console`
 all went unresolved in `packages/node-utils` under 6.0.3 while 5.9.3 stayed clean. Hence two
 standing rules: every workspace that compiles Node code **declares `@types/node` itself** and
-sets `"types": ["node"]` in its tsconfig (`packages/node-utils`, `apps/api`, `apps/proxy` -
-not `base.json`, which `packages/types` shares and which must stay framework-free). Note that
+sets `"types": ["node"]` in its tsconfig (`packages/node-utils`, `apps/api`, `apps/proxy`,
+`packages/testing`, and `packages/case-conversion` for its tests and Vitest config - not
+`base.json`, which `packages/types` shares and which must stay framework-free). Note that
 a package imported *by name* is unaffected: module resolution still walks up to the workspace
 root. Only ambient type packages, which are never imported, need declaring.
 
@@ -160,24 +165,30 @@ Topic rules live one-per-file in `.claude/rules/` and load automatically: `catal
 covers every Catalyst call and how few of them a solution makes, `outbound-http.md` every
 call to a service outside this repo, `web-data-access.md` every call the browser makes to
 our own API and every form that collects one, `environment.md` every environment
-variable, `zoho-token.md` every Zoho access token, `typography.md` every font. Add a file
-there rather than growing this one, and give it `paths:` frontmatter if it only applies to
-part of the tree.
+variable, `zoho-token.md` every Zoho access token, `typography.md` every font,
+`code-design.md` every class and the pattern it follows, `readable-code.md` casing, naming
+and when complexity is worth it, `vendor-boundaries.md` where each vendor is reached and how
+little a migration touches, `testing.md` where tests live, how Catalyst is faked and what to
+run before calling a change done. Add a file there rather than growing this one, and give it
+`paths:` frontmatter if it only applies to part of the tree.
 
-- `@/*` resolves to `./src/*` in every workspace. Use it instead of `../../`.
+- `@/*` resolves to `./src/*` in every app and every built package. Use it instead of `../../`.
 - Shared packages expose subpaths, not a barrel: `@repo/types/api`, `@repo/routing/api-path`,
+  `@repo/case-conversion/camel-case`,
   `@repo/node-utils/framework/logger`, `@repo/node-utils/framework/async-context`,
-  `@repo/node-utils/services/catalyst/resources`, `@repo/node-utils/utils/env`.
+  `@repo/node-utils/catalyst/resources`, `@repo/node-utils/utils/env`,
+  `@repo/testing/vitest-projects`.
 - File names are kebab-case: `http-error.ts`, `async-context.ts`.
 - Identifiers and JSON keys are camelCase: `emailId`, `nextPageToken`. The exception is
   a wire shape a vendor defines - Catalyst sends `email_id`, `job_name`, `ROWID` - which
   is named as the vendor names it and converted at the wrapper, never leaked past it.
+  See `.claude/rules/readable-code.md`.
 - Workspace deps are `"workspace:*"`.
 - **A file earns its existence from a second caller or from a boundary, not from
   tidiness.** Something used in exactly one place lives where it is used; split it out
   when the second caller arrives, and let that caller tell you what the shape should be.
-  The exception is a seam - `services/catalyst/`, `services/api/client.ts`,
-  `endpoints.ts` - which exists so that everything passes through one place. A seam is
+  The exception is a seam - `catalyst/`, `services/api/client.ts` - which exists so
+  that everything passes through one place. A seam is
   right at one caller, because being the only route through is its whole job. Everything
   else - a validation rule, a formatter, a resolver - is not.
 - `packages/*` are ESM; root and `apps/api` are CommonJS. The split is source-only -
@@ -195,7 +206,7 @@ part of the tree.
 In `apps/web`:
 
 - Reach `apps/api` through `src/services/` - one file per domain, built on
-  `src/services/api/` (`client.ts` for transport, `endpoints.ts` for every path). No
+  `src/services/api/client.ts` for transport, with every path built from `ApiPath`. No
   `fetch` and no URL in a component.
 - Server state is react-query, form state is react-hook-form. Both are installed; neither
   gets re-implemented with `useState`.
@@ -207,7 +218,7 @@ In `apps/web`:
 In `apps/api`:
 
 - Reach Catalyst through a resource handle imported from
-  `@repo/node-utils/services/catalyst/resources`, where every table, bucket, cache segment
+  `@repo/node-utils/catalyst/resources`, where every table, bucket, cache segment
   and job is declared once with the wrapper's `create` factory. Never construct a wrapper
   in a handler, never initialize Catalyst yourself, and never read the app off the context
   - see `.claude/rules/catalyst-sdk.md`.
@@ -232,16 +243,33 @@ In `apps/api`:
 **An API route** - follow `src/routes/ping.ts`: export a `Router` with the explicit
 `: Router` annotation, use the response builders, add its segments to `ApiPath`
 (`packages/routing`), then mount it in `src/routes/api-router.ts` under its own segment.
-That file is the only place a router mounts, so `src/index.ts` never changes.
+That file is the only place a router mounts, so `src/app.ts` never changes. A route that
+calls Catalyst mounts `initCatalystScopes([...])` (`src/middleware.ts`) ahead of its handler,
+naming the scopes it uses - `router.use` it instead when every route on the router needs them.
+
+**A table** - declare its handle in `packages/node-utils/src/catalyst/resources.ts`, its
+domain type in `packages/types`, and a repository in
+`packages/node-utils/src/repositories/<name>-repository.ts` that is the only importer of the
+handle and maps rows to the domain type. Routes call the repository. See
+`.claude/rules/vendor-boundaries.md`.
 
 **An AppSail app** - copy `apps/api` as the shape. Four things must agree:
 `scripts/bundle.mjs` (output `appsails/<name>/`), `app-config.json`, the `catalyst.json`
 entry, and the `--only appsail:<name>` flag in the root `deploy` script.
 
 **A shared package** - `packages/<name>` with `"type": "module"`, the same subpath
-`exports` block as the others, a tsconfig extending `@repo/typescript-config/base.json`,
-`"build": "tsc --build && tsc-alias"`, and an `eslint.config.mjs` re-exporting
-`@repo/eslint-config`. Keep it framework-free: both Express and Next.js consume these.
+`exports` block as the others, a `tsconfig.json` extending
+`@repo/typescript-config/base.json` (no emit, covers `src` and `test`) and a
+`tsconfig.build.json` extending it (`src` only, emits `dist/`),
+`"build": "tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json"`, and an
+`eslint.config.mjs` spreading `@repo/eslint-config` - plus `allowTestsIn([...])` once it has
+tests. A package `apps/web` consumes is
+framework-free and sets `"types": []` - copy `packages/routing` - or `@types/node` from the
+repo root lets Node APIs compile in its `src/`. A server-only package declares `@types/node`
+and `"types": ["node"]` instead - copy `packages/node-utils`. `@repo/testing` is the one
+exception to all of this - see `.claude/rules/testing.md`.
+
+**Tests** - see `.claude/rules/testing.md`. Run `pnpm verify` before calling any change done.
 
 ## Catalyst notes
 
@@ -256,5 +284,7 @@ entry, and the `--only appsail:<name>` flag in the root `deploy` script.
   shared-package code is **inlined at bundle time**. Anything a package needs to resolve
   at runtime will work under `tsx watch` and fail in AppSail.
 - `apps/web/.catalyst/slate-config.toml` is CLI-generated. Do not hand-edit.
+- Slate deploys `slate/web`, not `apps/web`. `apps/web/scripts/bundle.mjs` stages it with
+  `@repo/*` vendored as `file:` dependencies, since Slate cannot resolve `workspace:*`.
 - For platform questions use the installed skills (`catalyst-basics`, `catalyst-appsail`,
   `catalyst-slate`, `catalyst-datastore`, `catalyst-authentication`) rather than guessing.

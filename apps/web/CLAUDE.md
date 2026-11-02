@@ -35,11 +35,6 @@ add a call, how query keys are shaped, and what a call site is and is not respon
 Shapes both sides use live in `@repo/types` (`@repo/types/api` for the envelope,
 `@repo/types/user` for the user shapes) - defined once, never redeclared here.
 
-Note `packages/types` carries a `prepare` script on purpose. Slate builds this app with a
-bare `pnpm install && pnpm run build` and never runs turbo, so without it `@repo/types`
-has no `dist/` at build time and every import of it fails in the cloud while working
-locally.
-
 ## Data fetching, forms and errors
 
 Three libraries, each with one job. `@tanstack/react-query` owns server state,
@@ -88,9 +83,26 @@ Routes stay thin and import from the rest.
 
 ## Deployment
 
-Slate builds this app from `.catalyst/slate-config.toml` (`pnpm install`,
-`pnpm run build`, output `.next`). That file is generated and managed by the Catalyst
-CLI - **do not hand-edit it**. Deployed from the repo root via `pnpm deploy`.
+Slate does not deploy this directory. `pnpm bundle` runs `scripts/bundle.mjs`, which
+stages a self-contained copy in `slate/web/` (gitignored), and `catalyst.json` points the
+`web` Slate app there. Deployed from the repo root via `pnpm deploy`.
+
+Slate never runs turbo and cannot resolve `workspace:*`, so the staged copy is a plain
+npm project:
+
+- each `@repo/*` dependency is copied from its built `dist/` into `vendor/<pkg>` and
+  installed as `file:./vendor/<pkg>`;
+- `packageManager` is npm and a `package-lock.json` is generated beside it;
+- the staged `.catalyst/slate-config.toml` is switched to `npm install` / `npm run build`.
+
+`.catalyst/slate-config.toml` here is generated and managed by the Catalyst CLI - **do not
+hand-edit it**; only the staged copy is rewritten. It applies to the first deployment
+only, so the Slate app's build settings in the Console must say npm too.
+
+A vendored package keeps only `name`, `version`, `type` and `exports`, so the script
+refuses a `@repo/*` package that declares runtime `dependencies` rather than drop them.
+`apps/web/turbo.json` makes `bundle` depend on `^build` alone - it needs the packages'
+`dist/`, not a local `next build`.
 
 ## Notes
 

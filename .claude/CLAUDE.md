@@ -78,7 +78,7 @@ catalyst serve      <- entry point, port assigned by the CLI (3000, 3001, 3002, 
 |---|---|---|
 | `apps/proxy` | `proxy` | **none - local only** |
 | `apps/api` | `api` | AppSail `api` |
-| `apps/web` | `web` | Slate `web` |
+| `apps/web` | `web` | Slate `web` (staged in `slate/web`) |
 | `packages/types` | `@repo/types` | - |
 | `packages/routing` | `@repo/routing` | - |
 | `packages/node-utils` | `@repo/node-utils` | - |
@@ -256,5 +256,7 @@ entry, and the `--only appsail:<name>` flag in the root `deploy` script.
   shared-package code is **inlined at bundle time**. Anything a package needs to resolve
   at runtime will work under `tsx watch` and fail in AppSail.
 - `apps/web/.catalyst/slate-config.toml` is CLI-generated. Do not hand-edit.
+- Slate deploys `slate/web`, not `apps/web`. `apps/web/scripts/bundle.mjs` stages it with
+  `@repo/*` vendored as `file:` dependencies, since Slate cannot resolve `workspace:*`.
 - For platform questions use the installed skills (`catalyst-basics`, `catalyst-appsail`,
   `catalyst-slate`, `catalyst-datastore`, `catalyst-authentication`) rather than guessing.

@@ -11,7 +11,6 @@
   "scripts": {
     "dev": "tsc --build && concurrently -n tsc,alias \"tsc --build --watch --preserveWatchOutput\" \"tsc-alias --watch\"",
     "build": "tsc --build && tsc-alias",
-    "prepare": "tsc --build && tsc-alias",
     "typecheck": "tsc --noEmit",
     "lint": "eslint"
   },

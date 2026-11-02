@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 4000",
     "build": "next build",
+    "bundle": "node scripts/bundle.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit"

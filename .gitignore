@@ -15,6 +15,7 @@ dist
 # Catalyst
 .catalystrc
 appsails
+slate
 functions
 
 # Secrets

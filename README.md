@@ -293,7 +293,8 @@ Which is `turbo run bundle && catalyst deploy --only appsail:api,slate:web`:
 
 1. Turborepo builds the packages, then the API, then bundles into `appsails/`.
 2. The CLI uploads `appsails/api/` as the `api` AppSail.
-3. The CLI builds and uploads `apps/web` as the `web` Slate app.
+3. The CLI uploads `slate/web/` - `apps/web` staged with its `@repo/*` packages vendored
+   in - as the `web` Slate app, which Slate then builds.
 
 **The proxy is not in that list, and must not be.** It is a local-development
 component only - Catalyst gives you the single origin and auth gate natively in the
@@ -313,9 +314,13 @@ it in `.catalystrc`; check which one you are on before deploying. Note that the 
 differs between environments - this is the most common cause of authentication
 breaking after promoting to Production.
 
-**Slate.** The frontend is built by Slate itself, from
-`apps/web/.catalyst/slate-config.toml` (`pnpm install`, then `pnpm run build`, output
-`.next`). That file is generated and managed by the CLI - do not hand-edit it.
+**Slate.** The frontend is built by Slate itself, from the staged copy in `slate/web/`
+(`npm install`, then `npm run build`, output `.next`). Slate cannot resolve
+`workspace:*`, so the bundle step copies each `@repo/*` package's `dist/` into
+`slate/web/vendor/` and rewrites the staged `slate-config.toml` to npm. The source
+`apps/web/.catalyst/slate-config.toml` is generated and managed by the CLI - do not
+hand-edit it. It applies to the first deployment only, so set the Slate app's install and
+build commands to npm in the Console as well.
 
 ---
 

@@ -12,7 +12,7 @@
   "slate": [
     {
       "name": "web",
-      "source": "apps/web"
+      "source": "slate/web"
     }
   ]
 }

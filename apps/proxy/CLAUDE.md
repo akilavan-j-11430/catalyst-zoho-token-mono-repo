@@ -3,10 +3,11 @@
 Reverse proxy that gives local development a single origin. Runs as the Catalyst
 AppSail named `proxy`, and is the only service the browser talks to directly.
 
-**This app is never deployed.** Catalyst provides the single origin and auth gate
-natively in the cloud, so the proxy exists purely to reproduce that shape on your
-machine. It is declared in `catalyst.json` so `catalyst serve` can run it; `pnpm deploy`
-ships only `appsail:api` and `slate:web`. Do not add it to the deploy list.
+**This app is never deployed.** It exists for local development only. The cloud has no
+equivalent: Slate and AppSail are separate origins there, and the web app calls the API
+cross-origin with a bearer token (see the root `.claude/CLAUDE.md`). It is declared in
+`catalyst.json` so `catalyst serve` can run it; `pnpm deploy` ships only `appsail:api`
+and `slate:web`. Do not add it to the deploy list.
 
 Port: `X_ZOHO_CATALYST_LISTEN_PORT` when the CLI injects it (4600 in practice), else
 **3000** as a standalone fallback. Under `catalyst serve` the CLI fronts it on a
@@ -32,8 +33,9 @@ what `apps/api` mounts its middleware on.
 ## Auth
 
 `app-config.json` sets `catalyst_auth: true` with `login_redirect: "/"`. Locally, login
-is enforced here and nowhere else - `apps/api` deliberately does not set it, because it
-is only reachable through this proxy.
+is enforced here. `apps/api` does not set it: locally it is reached only through this
+proxy, and in the cloud each of its routes guards itself with
+`initCatalystScopes([CatalystScope.User])`.
 
 ## Running
 

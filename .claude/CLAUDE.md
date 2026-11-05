@@ -89,10 +89,21 @@ catalyst serve      <- entry point, port assigned by the CLI (3000, 3001, 3002, 
 | `packages/eslint-config` | `@repo/eslint-config` | - |
 | `packages/testing` | `@repo/testing` | - |
 
-**The proxy is never deployed.** It exists only to give local development the single
-origin and auth gate that Catalyst provides natively in the cloud. It appears in
-`catalyst.json` so `catalyst serve` can run it, and `pnpm deploy` deliberately ships
-only `appsail:api` and `slate:web`. Do not add it to the deploy list.
+**The proxy is never deployed.** It gives local development a single origin and an auth
+gate. It appears in `catalyst.json` so `catalyst serve` can run it, and `pnpm deploy`
+deliberately ships only `appsail:api` and `slate:web`. Do not add it to the deploy list.
+
+**The cloud is two origins, not one.** Slate serves `web` from `*.onslate.com` and
+AppSail serves `api` from `*.catalystappsail.com`, and the session cookie does not cross
+between them:
+
+- The browser calls AppSail at `NEXT_PUBLIC_API_URL`, inlined at build time. Locally it is
+  unset and calls stay relative, through the proxy - see `.claude/rules/general/environment.md`.
+- `api` (`apps/web/src/services/api/client.ts`) sends `Authorization: Bearer <token>` from
+  `AuthClient.authHeaders()`, which uses the web SDK's `generateAuthToken()`. `publicApi`
+  sends none, for signed-out routes - see `.claude/rules/web/web-data-access.md`.
+- CORS comes from Catalyst's Authorized Domains for the Slate domain, never from
+  middleware in `apps/api`, which would duplicate the header.
 
 ## Three things that will waste your time
 
@@ -290,7 +301,10 @@ exception to all of this - see `.claude/rules/general/testing.md`.
   credentials ride on request headers, so nothing Catalyst-related belongs in the
   environment.
 - `catalyst_auth: true` in `apps/proxy/app-config.json` is what enforces login locally.
-  The api AppSail does not set it - it is reachable only through the proxy.
+  The api AppSail does not set it. In the cloud it is reached directly, cross-origin, so
+  a route that needs a signed-in caller says so with `initCatalystScopes([CatalystScope.User])`,
+  which answers 401 without a valid token. Admin scope proves nothing about the caller:
+  the gateway grants it to anonymous requests too, so an Admin-only route is public.
 - `catalyst.json` is committed and declares the deployables. `.catalystrc` is gitignored
   and per-developer, written by `catalyst init`.
 - `apps/api` bundles with esbuild and strips `@repo/*` from the deployed manifest, so

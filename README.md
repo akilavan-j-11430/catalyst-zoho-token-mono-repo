@@ -10,8 +10,10 @@ running full-stack application in a few minutes.
 - A **Next.js 16** frontend (React 19, Tailwind 4) deployed as a Catalyst Slate app.
 - An **Express 5** API on the modular `@zcatalyst/*` SDKs, deployed as a Catalyst AppSail, with
   per-request execution context, structured logging, and a consistent response shape.
-- A **reverse proxy** AppSail that gives the whole stack a single origin and enforces
-  Catalyst login at the edge.
+- A **reverse proxy** AppSail, for local development only, that gives the stack a single
+  origin and enforces Catalyst login at the edge.
+- **Cross-origin auth for the cloud**, where Slate and AppSail run on separate domains: the
+  browser calls the API with a Catalyst token rather than a session cookie.
 - **Shared TypeScript packages** for response types, runtime utilities, and a common
   tsconfig - wired up with pnpm workspaces.
 - A **Turborepo pipeline** so builds are cached and ordered correctly, plus one-command
@@ -53,22 +55,28 @@ up needing, done once and done consistently.
         +---------------------+   +----------------------+
 ```
 
-**Why the proxy exists, and why it is local only.** It would be simpler to let the
-browser call the API directly, but then you have two origins: one for the frontend and
-one for the API. That means CORS configuration, a second place to enforce login, and
-cookies that do not travel cleanly between the two. The proxy collapses that into a
-single origin and sets `catalyst_auth: true`, so login is enforced once, at the edge,
-before any request reaches your code.
+**Why the proxy exists, and why it is local only.** Locally the proxy puts the web app
+and the API behind one origin. The browser's session cookie and the Catalyst headers
+`catalyst serve` injects then reach the API with no extra setup, and `catalyst_auth:
+true` enforces login once, at the edge. It is listed in `catalyst.json` so `catalyst
+serve` can run it, and `pnpm deploy` ships only `appsail:api` and `slate:web`. **Do not
+add it to the deploy list.**
 
-In the cloud, Catalyst provides that single origin and auth gate natively - so **the
-proxy is never deployed**. It exists purely to reproduce production's shape on your
-machine. It is listed in `catalyst.json` so `catalyst serve` can run it, and
-`pnpm deploy` ships only `appsail:api` and `slate:web`. Do not add it to the deploy
-list.
+**The cloud has two origins.** Slate serves the web app from `*.onslate.com` and AppSail
+serves the API from `*.catalystappsail.com`, and the session cookie does not travel
+between them. So the deployed web app:
 
-The local port map mirrors the deployed topology exactly, so a request path that works
-in `pnpm dev` works after `pnpm deploy`. The frontend always calls `/api/...` as a
-relative path and never needs to know where the API lives.
+- calls the API at an absolute URL, `NEXT_PUBLIC_API_URL`, set in the Slate Console;
+- sends `Authorization: Bearer <token>` on every call that needs a signed-in user, where
+  the token comes from the web SDK's `generateAuthToken()`.
+
+Locally `NEXT_PUBLIC_API_URL` is unset, so the same calls stay relative (`/api/...`) and go
+through the proxy. A service picks its client by route: `api` sends the token, and
+`publicApi` sends none, for signed-out routes such as sign-up.
+
+In the cloud nothing sits in front of the API, so each route enforces its own login: a
+route that mounts `initCatalystScopes([CatalystScope.User])` answers 401 to a caller with
+no valid token.
 
 **Two things to internalise before you start.** First, the entry port is assigned by
 the Catalyst CLI - it takes the first free port from 3000 upward, so in practice it is
@@ -315,8 +323,19 @@ Which is `turbo run bundle && catalyst deploy --only appsail:api,slate:web`:
    in - as the `web` Slate app, which Slate then builds.
 
 **The proxy is not in that list, and must not be.** It is a local-development
-component only - Catalyst gives you the single origin and auth gate natively in the
-cloud. Deploying it would put a redundant hop in front of your app.
+component only. In the cloud the web app reaches the API directly, cross-origin.
+
+**Two settings make the cross-origin call work**, once per environment:
+
+1. **Authorized Domains.** Console -> Authentication -> Whitelisting -> Authorized
+   Domains: add the Slate app's domain with CORS enabled. Catalyst then adds the CORS
+   headers to the API's responses itself. Do not add CORS middleware to `apps/api`: a second
+   `Access-Control-Allow-Origin` header makes the browser reject the response.
+2. **`NEXT_PUBLIC_API_URL`.** Console -> Slate -> web -> Environment Variables: the `api`
+   AppSail's URL, as the Console shows it. Next inlines it at build time, so it must be
+   set before Slate builds, and a change needs a rebuild. `apps/web/.env.example`
+   documents it. A local `apps/web/.env` never reaches Slate, because the bundle leaves
+   it out.
 
 **Environment variables are not carried by the deploy.** `app-config.json` declares no
 `env_variables`, on purpose - it is committed, so a value there is a value in git. Set
@@ -357,8 +376,9 @@ they are private and never published.
 3. Its entry in `catalyst.json` (`name` and `source`).
 4. The `--only appsail:<name>` flags in the root `deploy` script.
 
-If you do not need the split, the proxy is the piece to drop first - but then you own
-CORS and auth enforcement yourself.
+The proxy is local only, so dropping it changes only local development. Local
+development would then have the same two origins as the cloud, and need the same CORS
+and token setup.
 
 **Add a shared package.** Create `packages/<name>` with `"private": true`,
 `"type": "module"`, the same subpath `exports` block as the existing packages, a

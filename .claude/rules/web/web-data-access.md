@@ -153,10 +153,12 @@ is `text/plain`, `Blob`/`ArrayBuffer` are binary, and `FormData`/`URLSearchParam
 alone so the multipart boundary generated with their bytes survives. A `content-type`
 header refines that when the default is not specific enough.
 
-`baseUrl` stays **relative**, unlike the server's, which demands an absolute URL. The proxy
-keeps the browser and the API on one origin; an absolute base would send the call
-cross-origin, where it arrives with no session cookie and none of the Catalyst headers
-`zcAuth.init(req)` reads.
+`baseUrl` may be **relative**, unlike the server's, which demands an absolute URL. Locally
+the proxy keeps the browser and the API on one origin, so `/api/v1` is enough. In the
+cloud Slate and AppSail are separate origins, and the base is `NEXT_PUBLIC_API_URL` plus
+that prefix. Both cases are decided once, in `API_BASE_URL` in `client.ts`, so no service
+changes between them. Across origins no session cookie travels, which is why `api` sends a
+bearer token.
 
 **`ApiClient.recordOf(response)` is how a service reads our own API.** `apps/api` answers every
 route with `{ status, data }`, and `recordOf` is the only place that knows it, so a service

@@ -21,7 +21,7 @@ export function SignedInAccount() {
       </div>
       <Button
         variant="outline"
-        onClick={() => void AuthClient.session().then((auth) => auth.signOut(AuthClient.appUrl("/sign-in")))}
+        onClick={() => void AuthClient.signOut("/sign-in")}
       >
         <LogOut aria-hidden />
         Sign out

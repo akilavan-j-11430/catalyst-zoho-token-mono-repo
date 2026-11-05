@@ -71,9 +71,20 @@ export class AuthClient {
     return { authorization: `Bearer ${token.accessToken}` };
   }
 
-  /** Drops the token in use, so the next call is issued a new one. */
-  static discardToken(): void {
+  /**
+   * Signs out, revoking the API token first. The SDK's own sign-out revokes only a token it
+   * stores itself, so ours would otherwise stay valid until it expires. A token still being
+   * issued is waited for, so it is revoked too. A failed revoke is swallowed so sign-out
+   * still completes, as the SDK does for its own token.
+   */
+  static async signOut(path: string): Promise<void> {
+    const auth = await AuthClient.session();
+    const token = (await AuthClient.pendingToken?.catch(() => null)) ?? AuthClient.heldToken;
     AuthClient.heldToken = null;
+    if (token) {
+      await auth.revokeAccessToken(token.accessToken).catch(() => undefined);
+    }
+    await auth.signOut(AuthClient.appUrl(path));
   }
 
   /** The held token while it has time left, else a new one. Concurrent callers share one

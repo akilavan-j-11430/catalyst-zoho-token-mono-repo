@@ -1,5 +1,6 @@
 import type { ErrorResponse, RecordResponse } from "@repo/types/api";
 import { ApiPath } from "@repo/routing/api-path";
+import { AuthClient } from "@/catalyst/auth-client";
 import {
   HttpMethod,
   type HeaderResolver,
@@ -306,7 +307,17 @@ export class ApiClient {
 }
 
 /**
- * One instance for `apps/api`. The prefix lives here rather than on every path, and stays
- * relative so the proxy keeps the browser and the API on one origin.
+ * The prefix lives here rather than on every path, and stays relative so the proxy keeps
+ * the browser and the API on one origin.
  */
-export const api = new ApiClient({ baseUrl: ApiPath.Api + ApiPath.V1 });
+const API_BASE_URL = ApiPath.Api + ApiPath.V1;
+
+/** For routes that need a signed-in caller - the default. Every call carries a token. */
+export const api = new ApiClient({
+  baseUrl: API_BASE_URL,
+  headers: () => AuthClient.authHeaders(),
+});
+
+/** For routes a signed-out visitor calls, such as sign-up: there is no session to issue a
+ *  token from. */
+export const publicApi = new ApiClient({ baseUrl: API_BASE_URL });

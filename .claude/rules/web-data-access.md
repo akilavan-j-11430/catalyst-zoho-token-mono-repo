@@ -33,6 +33,7 @@ component is invisible there.
 | You are adding | It goes in |
 |---|---|
 | a call to a route that already exists | `src/services/<domain>.ts` - the file for that domain |
+| a call a signed-out visitor makes, such as sign-up | `publicApi` - every other call uses `api`, which carries the caller's bearer token |
 | the first call for a new domain | a new `src/services/<domain>.ts` |
 | a path segment | `ApiPath` in `packages/routing/src/api-path.ts`, nowhere else |
 | something the client cannot express yet - an upload, a retry, a redirect policy | `src/services/api/client.ts` |

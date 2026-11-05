@@ -7,12 +7,22 @@ export interface SignedInUser {
   lastName?: string;
 }
 
+interface AuthToken {
+  accessToken: string;
+  /** Asked for again from here on, while the old one still has a minute to live. */
+  refreshAt: number;
+}
+
 /**
  * Facade: everything this app asks of the Catalyst web SDK - the session, the signed-in
- * user, and the URLs handed to the SDK. The only code in this app that reaches it.
+ * user, the API token, and the URLs handed to the SDK. The only code in this app that
+ * reaches it.
  */
 export class AuthClient {
+  private static readonly TOKEN_REFRESH_MARGIN_MS = 60_000;
+
   private static pendingSession: Promise<Authentication> | null = null;
+  private static pendingToken: Promise<AuthToken> | null = null;
 
   /**
    * The SDK reads `document` when its module is evaluated, which would crash the server
@@ -44,6 +54,36 @@ export class AuthClient {
   static async currentUser(): Promise<SignedInUser | null> {
     const auth = await AuthClient.session();
     return AuthClient.toSignedInUser(await auth.isUserAuthenticated());
+  }
+
+  /**
+   * The caller's credential for `apps/api`. Slate and AppSail are separate origins, so the
+   * session cookie never reaches the API and this bearer token carries the user instead.
+   * One token serves every call until it nears expiry - each issue is two Catalyst round
+   * trips - and concurrent callers share the one in flight. It needs a session, so only
+   * the client for signed-in routes resolves it.
+   */
+  static async authHeaders(): Promise<Record<string, string>> {
+    AuthClient.pendingToken ??= AuthClient.issueAuthToken();
+    try {
+      const token = await AuthClient.pendingToken;
+      if (Date.now() >= token.refreshAt) {
+        AuthClient.pendingToken = null;
+      }
+      return { authorization: `Bearer ${token.accessToken}` };
+    } catch (error) {
+      AuthClient.pendingToken = null;
+      throw error;
+    }
+  }
+
+  private static async issueAuthToken(): Promise<AuthToken> {
+    const auth = await AuthClient.session();
+    const { access_token, expires_in_sec } = await auth.generateAuthToken("functions");
+    return {
+      accessToken: access_token,
+      refreshAt: Date.now() + expires_in_sec * 1000 - AuthClient.TOKEN_REFRESH_MARGIN_MS,
+    };
   }
 
   private static toSignedInUser(value: unknown): SignedInUser | null {

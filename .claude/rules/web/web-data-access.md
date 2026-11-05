@@ -1,5 +1,6 @@
 ---
-paths: apps/web/**
+paths:
+  - "apps/web/**"
 ---
 
 # Reaching the API from the browser

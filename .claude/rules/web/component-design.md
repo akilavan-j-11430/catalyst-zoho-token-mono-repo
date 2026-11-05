@@ -6,7 +6,7 @@ paths:
 # Component design
 
 Four rules for `apps/web`: a trigger owns what it opens, styling lives in shared
-components, a page uses the full width, and no wait ever looks stuck.
+components, each page decides its own width, and no wait ever looks stuck.
 
 ## A trigger and what it opens are one component
 
@@ -72,17 +72,23 @@ classes:
   of utilities. Fonts follow the stricter rule in `typography.md`: a family is set only in
   `globals.css`.
 
-## A page uses the full width
+## Each page decides its own width
 
-A page spans the viewport. No layout or page caps itself with a centred `max-w-*` column
-and leaves the sides empty.
+No single width fits every page. Decide each page's width from what it holds, and when it
+is unclear, choose full width:
 
-- The page shell carries the one horizontal gutter and the full width, and it is a shared
-  component, so every page gets the same edges.
-- Wide content divides the width with a grid or columns rather than stacking narrow
-  blocks down the middle.
-- Check every page at a phone width and at a wide desktop width. It should fill both
-  with no horizontal scroll.
+| The page holds | Width |
+|---|---|
+| data people work with - a list, a table, a dashboard, a detail view | full width, with the shared gutter; a grid or columns divide the space rather than a narrow column down the middle |
+| one short task - sign-in, sign-up, a confirmation | a narrow centred card, as `(auth)/layout.tsx` does - a short form stretched across a wide screen is harder to fill in |
+
+- The width is chosen through the shared page shell, with a prop such as
+  `width="full" | "narrow"`, so the decision is visible in the page and the classes stay
+  in one place. Add the shell with the first page that needs it.
+- Pages that share a width share a layout - `(auth)/layout.tsx` holds the card for both
+  sign-in and sign-up - so the choice is made once per group, not once per page.
+- Whatever the width, check the page at a phone width and at a wide desktop width. Both
+  should show no horizontal scroll and no cut-off content.
 
 ## No wait looks stuck
 

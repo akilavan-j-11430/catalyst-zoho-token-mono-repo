@@ -202,6 +202,8 @@ Topic rules live one-per-file in `.claude/rules/` and load automatically, in two
 it, how it is run locally, and its limits. Creating one is a skill (below):
 - `function-entry-point.md` - the export, init, scope and logger every function gets right.
 - `job-function.md` - one function for every job, dispatching on `jobName`.
+- `advanced-io-function.md` - an Express app exported, never listening.
+- `basic-io-function.md` - a single handler, arguments in, one string out.
 - `signal-function.md` - one function for every Signals event, dispatching on its name.
 
 Add a file to the folder it belongs to rather than growing this one. Give a rule `paths:`
@@ -294,14 +296,16 @@ first, then pick the kind and run its skill in `.claude/skills/`:
 | You need | Add | Skill |
 |---|---|---|
 | an HTTP route that belongs with the rest of the API | a router in `apps/api`, as above | - |
+| an HTTP API that deploys and scales apart from `api`, each request under 30 s | an Advanced I/O function | `add-aio-fn` |
+| one small operation, arguments in, one string out | a Basic I/O function | `add-bio-fn` |
 | work a `Job` handle submits, now or at a set time | a Job function | `add-job-fn` |
 | work a Catalyst Signals rule delivers | a Signal (Event) function | `add-signal-fn` |
 | a process that runs past 15 minutes, holds WebSockets, or keeps state between requests | an AppSail, browser-facing or not | `add-appsail` |
 | a second frontend on its own domain | a Slate app | `add-slate` |
 
 Cron functions are deprecated and not used - schedule a job with `submitOneTimeCron` on
-its `Job` handle. A Job or Signal function stops at 15 minutes; an AppSail has no timeout
-but is billed for uptime. The steps
+its `Job` handle. A Job or Signal function stops at 15 minutes and a Basic I/O or Advanced
+I/O function at 30 seconds; an AppSail has no timeout but is billed for uptime. The steps
 all kinds share are in `.claude/skills/deployable-steps.md` and
 `.claude/skills/function-steps.md`, which each skill reads first.
 

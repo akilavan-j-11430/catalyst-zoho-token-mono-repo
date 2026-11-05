@@ -179,6 +179,8 @@ Topic rules live one-per-file in `.claude/rules/` and load automatically, in two
 - `web-data-access.md` - every call the browser makes to our own API, and every form that
   collects one.
 - `typography.md` - every font.
+- `component-design.md` - how a component is split, styled and laid out, and how it shows a
+  wait.
 
 Add a file to the folder it belongs to rather than growing this one. Give a rule `paths:`
 frontmatter when it applies to only part of the tree.

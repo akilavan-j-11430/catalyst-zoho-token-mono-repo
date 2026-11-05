@@ -47,7 +47,9 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 ## Rules
 
 - **Keep them framework-free.** Both an Express app and a Next.js app import these.
-  No `express`, no `react`, no Next.js imports.
+  No `express`, no `react`, no Next.js imports. The one exception is
+  `@repo/http-server`, which holds the Express plumbing every HTTP app shares, once a
+  second app needs it - see `.claude/skills/deployable-steps.md`.
 - **`node-utils/src/catalyst/` is the only directory that may import a Catalyst
   SDK.** ESLint enforces it. See `.claude/rules/general/catalyst-sdk.md`.
 - **Catalyst resources are declared once, in `catalyst/resources.ts`** - one

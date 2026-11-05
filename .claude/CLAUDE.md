@@ -42,6 +42,10 @@ Where new work goes:
   a path is never a string literal in either app. Each AppSail's segments live in a file
   named after the app - `api-path.ts` for `api`, `billing-path.ts` exporting `BillingPath`
   for an `apps/billing`. Client paths belong here too, in their own file.
+- Express plumbing every HTTP app shares (middleware, `HttpError`, response builders) ->
+  `packages/http-server`, the one package allowed `express`. Today it lives in `apps/api`;
+  the first other app that serves HTTP moves it there - see
+  `.claude/skills/deployable-steps.md`.
 - Server-side helpers -> `packages/node-utils`. It imports `node:async_hooks`, so
   it is `apps/api` only - never reach it from `apps/web`.
 - Never `apps/proxy`. It is local-only plumbing and ships nothing; a feature added
@@ -278,9 +282,17 @@ domain type in `packages/types`, and a repository in
 handle and maps rows to the domain type. Routes call the repository. See
 `.claude/rules/general/vendor-boundaries.md`.
 
-**An AppSail app** - copy `apps/api` as the shape. Four things must agree:
-`scripts/bundle.mjs` (output `appsails/<name>/`), `app-config.json`, the `catalyst.json`
-entry, and the `--only appsail:<name>` flag in the root `deploy` script.
+**An AppSail or a Slate app** - a new deployable, so agree it with the user
+first, then pick the kind and run its skill in `.claude/skills/`:
+
+| You need | Add | Skill |
+|---|---|---|
+| an HTTP route that belongs with the rest of the API | a router in `apps/api`, as above | - |
+| a process that runs past 15 minutes, holds WebSockets, or keeps state between requests | an AppSail, browser-facing or not | `add-appsail` |
+| a second frontend on its own domain | a Slate app | `add-slate` |
+
+The steps every kind shares are in `.claude/skills/deployable-steps.md`, which each skill
+reads first.
 
 **A shared package** - `packages/<name>` with `"type": "module"`, the same subpath
 `exports` block as the others, a `tsconfig.json` extending

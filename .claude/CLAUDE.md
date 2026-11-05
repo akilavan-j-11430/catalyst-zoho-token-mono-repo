@@ -39,8 +39,9 @@ Where new work goes:
   never two definitions that can drift.
 - Route path segments -> `packages/routing`: `ApiPath` in `api-path.ts`, combined with
   `+` - `ApiPath.Api + ApiPath.V1`. `apps/api` mounts them and `apps/web` calls them, so
-  a path is never a string literal in either app. Client paths belong here too, in their
-  own file.
+  a path is never a string literal in either app. Each AppSail's segments live in a file
+  named after the app - `api-path.ts` for `api`, `billing-path.ts` exporting `BillingPath`
+  for an `apps/billing`. Client paths belong here too, in their own file.
 - Server-side helpers -> `packages/node-utils`. It imports `node:async_hooks`, so
   it is `apps/api` only - never reach it from `apps/web`.
 - Never `apps/proxy`. It is local-only plumbing and ships nothing; a feature added

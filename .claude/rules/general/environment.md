@@ -106,25 +106,26 @@ has no `src/env.ts` for exactly that reason.
 Nothing Catalyst-related belongs in the environment at all. Project details and the
 caller's credentials ride on request headers, because `zcAuth.init(req)` is per request.
 
-## `apps/web` reads one key
+## `apps/web` reads one key per backend it calls
 
-`apps/web` reads exactly one variable, `NEXT_PUBLIC_API_URL`, and anything else the
-browser needs comes from the API. It is the one value the browser needs before it can
-reach the API at all: in the cloud Slate and AppSail are separate origins, so a deployed
-build is told where AppSail lives.
+`apps/web` reads one variable for each backend the browser calls - an AppSail or an
+Advanced I/O function. Today that is only `NEXT_PUBLIC_API_URL`, for `api`, and anything
+else the browser needs comes from a backend. It is the one value the browser needs before
+it can reach that backend at all: in the cloud Slate and each backend are separate origins,
+so a deployed build is told where each one lives.
 
-- Read once, as a literal `process.env.NEXT_PUBLIC_API_URL`, in
-  `src/services/api/client.ts`. Next inlines it at `next build` and inlines nothing it
-  cannot see written out, so there is no template or `defineEnv` here - that is
-  `node-utils`, which the browser cannot import.
+- Read once, as a literal `process.env.NEXT_PUBLIC_<NAME>_URL`, in
+  `src/services/api/client.ts`, beside that backend's clients. Next inlines it at
+  `next build` and inlines nothing it cannot see written out, so there is no template or
+  `defineEnv` here - that is `node-utils`, which the browser cannot import.
 - Set in **Console -> Slate -> web -> Environment Variables**, and left unset locally, where
   calls stay relative and go through `apps/proxy`. `apps/web/.env.example` documents it.
 - `scripts/bundle.mjs` never stages a `.env*` file, so a local value cannot ship.
 - No `turbo.json` entry: turbo's Next.js inference already puts `NEXT_PUBLIC_*` in the
   `build` cache key.
 
-Add no second key. A value the browser needs once it can reach the API is the API's to
-serve.
+Add a key only for a new backend the browser calls - `.claude/skills/deployable-steps.md` has the steps. A
+value the browser needs once it can reach a backend is that backend's to serve.
 
 ## Not covered by this rule
 

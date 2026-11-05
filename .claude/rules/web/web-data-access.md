@@ -35,8 +35,9 @@ component is invisible there.
 |---|---|
 | a call to a route that already exists | `src/services/<domain>.ts` - the file for that domain |
 | a call a signed-out visitor makes, such as sign-up | `publicApi` - every other call uses `api`, which carries the caller's bearer token |
+| a call to a backend other than `api` - another AppSail, an Advanced I/O function | that backend's client pair in `src/services/api/client.ts`, built like `api` / `publicApi` on its own base URL - never a client built at a call site |
 | the first call for a new domain | a new `src/services/<domain>.ts` |
-| a path segment | `ApiPath` in `packages/routing/src/api-path.ts`, nowhere else |
+| a path segment | the routing file named after the backend - `ApiPath` in `packages/routing/src/api-path.ts` for `api` - nowhere else |
 | something the client cannot express yet - an upload, a retry, a redirect policy | `src/services/api/client.ts` |
 | a header, a timeout, a retry, a move off `fetch` | `src/services/api/client.ts` |
 | query keys, once more than one query exists | `src/services/query-keys.ts` |

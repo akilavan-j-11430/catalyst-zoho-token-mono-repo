@@ -188,4 +188,4 @@ deployed manifest from that file alone.
 `apps/web` calls this repo's own API through the proxy. That is not an external request,
 and `apps/web` cannot import `node-utils` anyway - it has its own client in
 `src/services/api/client.ts`, built to this same standard and returning the same
-`HttpResponse` from `@repo/types/http`. `.claude/rules/web-data-access.md` is its rule.
+`HttpResponse` from `@repo/types/http`. `.claude/rules/web/web-data-access.md` is its rule.

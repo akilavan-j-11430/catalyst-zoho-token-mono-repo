@@ -156,7 +156,7 @@ Values this repo's own code reads. Each is a key on the owning app's template - 
 | `WEB_APP_ORIGIN` | `apps/api` | The web app's origin. The browser goes back to its home page once the Zoho connection exists. |
 
 These never go in `app-config.json` or any other Catalyst file - that file is committed,
-and `.env` is not. `.claude/rules/environment.md` is the full rule.
+and `.env` is not. `.claude/rules/general/environment.md` is the full rule.
 
 **4. Start everything**
 
@@ -239,7 +239,7 @@ curl http://localhost:3001/api/v1/nope
 | `@repo/types` | `RecordResponse`, `PagedRecordResponse`, `ErrorResponse` - imported by both the API and the web app so the contract is written once. |
 | `@repo/node-utils` | `ExecutionContext` over `AsyncLocalStorage`, a `logger` that stamps execution IDs, `RuntimeError`, `env`, `HttpClient`, and the Catalyst wrappers plus the resource handles built from them. |
 | `@repo/case-conversion` | `CamelCase.convertKeys` - renames a vendor's snake_case or kebab-case keys at any depth, for `node-utils` and the web app. |
-| `@repo/testing` | `VitestProjects.forWorkspace`, the Vitest settings every tested workspace starts from. Dev-only - see `.claude/rules/testing.md`. |
+| `@repo/testing` | `VitestProjects.forWorkspace`, the Vitest settings every tested workspace starts from. Dev-only - see `.claude/rules/general/testing.md`. |
 | `@repo/typescript-config` | `base.json`. Strict mode, `noUncheckedIndexedAccess`, ES2022. Every other tsconfig extends it. |
 | `@repo/eslint-config` | Shared flat ESLint config. Each workspace spreads it into its own `eslint.config.mjs` and adds its exemptions - `allowTestsIn([...])` when it has tests. |
 

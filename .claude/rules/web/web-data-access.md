@@ -47,7 +47,7 @@ tempting shortcut:
 
 - **A capability the client does not have is added to the client**, never a `fetch` at
   the call site and never a second client. It is the same rule as
-  `.claude/rules/catalyst-sdk.md`: a capability used from a call site but invisible in the
+  `.claude/rules/general/catalyst-sdk.md`: a capability used from a call site but invisible in the
   layer is the thing to avoid. One that turns out to be single-use is still the right
   shape - the client is a seam, and a seam is right at one caller.
 - **A service function builds its path from `ApiPath` segments**, added together with `+`,

@@ -31,7 +31,7 @@ what the app asks of Zoho across two places.
 ## Calling a Zoho API
 
 Ask for the token per request, inside the `headers` resolver of that service's
-`HttpClient` (see `.claude/rules/outbound-http.md`):
+`HttpClient` (see `.claude/rules/general/outbound-http.md`):
 
 ```ts
 import { HttpHeader } from "@repo/node-utils/enums/http-header";

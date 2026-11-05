@@ -4,7 +4,7 @@ import type { ViteUserConfig } from "vitest/config";
 /**
  * The Vitest settings every tested workspace starts from: a `unit` and an `integration`
  * project, the `@/` alias to the workspace's `src/`, and the reset before each test.
- * `.claude/rules/testing.md` is the full rule.
+ * `.claude/rules/general/testing.md` is the full rule.
  *
  * Factory: each workspace's `vitest.config.ts` builds its settings here, so they are written
  * once.

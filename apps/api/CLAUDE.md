@@ -12,7 +12,7 @@ src/
 |-- index.ts              startup: log timezone, listen on the port
 |-- app.ts                the Express app - middleware order, route mounting
 |-- env.ts                every environment variable this app reads
-|-- zoho-connections.ts   the app's one ZohoConnection, built from env - see .claude/rules/zoho-token.md
+|-- zoho-connections.ts   the app's one ZohoConnection, built from env - see .claude/rules/general/zoho-token.md
 |-- middleware.ts         execution context, request timing, terminal error handler
 |-- routes/api-router.ts  the only place a router mounts
 |-- routes/ping.ts        reference route - copy this shape
@@ -32,7 +32,7 @@ tsconfig.build.json       src only - build
 ```
 
 `app.ts` builds the Express app without a listener, so the integration tests import it
-directly. Tests and how Catalyst is faked: `.claude/rules/testing.md`.
+directly. Tests and how Catalyst is faked: `.claude/rules/general/testing.md`.
 
 `catalyst-logger` is imported first in `index.ts` purely for its side effect: it
 replaces the `console` methods so logs are framed for Catalyst's collector. It exports
@@ -117,14 +117,14 @@ await invoiceBucket.runIn(CatalystScope.User).getObject(invoiceKey);
 ```
 
 Handles are declared once in `packages/node-utils/src/catalyst/resources.ts`, never in a
-route. See `.claude/rules/vendor-boundaries.md`.
+route. See `.claude/rules/general/vendor-boundaries.md`.
 
 If a handle cannot do what the route needs, **add the method to the wrapper** rather than
 reaching for the SDK here. A single-use method is still the right shape.
 
 The wrappers throw `CatalystError` (`@repo/node-utils/errors/catalyst-error`), which carries
 an `ErrorCode`; catch it at the route only to map onto an `HttpError`, otherwise let it
-reach `errorHandler` as a 500. `.claude/rules/catalyst-sdk.md` is the full rule.
+reach `errorHandler` as a 500. `.claude/rules/general/catalyst-sdk.md` is the full rule.
 
 `currentContext()` throws outside a request. Carry anything else request-scoped via
 `manager.setExtras(key, value)` / `manager.getExtras<T>(key)`.
@@ -171,7 +171,7 @@ The shapes live in `@repo/types/api` so the web app imports the same ones.
 
 Through `HttpClient` from `@repo/node-utils/http/http-client` - never `fetch` or another
 client directly. One instance per service at module scope; the full rule, the body and
-response shapes and the transport seam are in `.claude/rules/outbound-http.md`.
+response shapes and the transport seam are in `.claude/rules/general/outbound-http.md`.
 
 The body decides its own encoding - an object becomes JSON, a string is text, `FormData`
 is multipart. A third argument refines that but may not contradict it. A call resolves to

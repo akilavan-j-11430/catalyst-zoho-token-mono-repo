@@ -49,7 +49,7 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 - **Keep them framework-free.** Both an Express app and a Next.js app import these.
   No `express`, no `react`, no Next.js imports.
 - **`node-utils/src/catalyst/` is the only directory that may import a Catalyst
-  SDK.** ESLint enforces it. See `.claude/rules/catalyst-sdk.md`.
+  SDK.** ESLint enforces it. See `.claude/rules/general/catalyst-sdk.md`.
 - **Catalyst resources are declared once, in `catalyst/resources.ts`** - one
   `export const` per table, bucket, cache segment and job, built with the wrapper's
   `create` factory. Apps import the handle; they never construct a wrapper themselves.
@@ -65,7 +65,7 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 - kebab-case file names, `@/*` for internal imports.
 - `HttpClient` (`src/http/`) is the only way anything in this repo talks to an external
   service. Types live in `src/types/`, named constants in `src/enums/`, and the transport
-  seam is `src/types/http.ts` - see `.claude/rules/outbound-http.md` before adding an HTTP
+  seam is `src/types/http.ts` - see `.claude/rules/general/outbound-http.md` before adding an HTTP
   dependency.
 - **These packages own the env mechanism, never a key.** `src/utils/env.ts` exports
   `defineEnv<T>()`, which is generic and names no variable; each app declares what it
@@ -74,7 +74,7 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
   `ZohoConnection.create(credentials, grant)` - so
   the app that owns the variable is the one that reads it, and the failure lands where the
   value is used. No file under `packages/` calls `process.env` except the mechanism
-  itself. See `.claude/rules/environment.md`.
+  itself. See `.claude/rules/general/environment.md`.
 
 ## A new package
 
@@ -85,7 +85,7 @@ extending it with `noEmit: false` / `rootDir: ./src` / `outDir: ./dist` /
 `include: ["src"]`, and
 `"build": "tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json"`. Then add
 it to consumers as `"workspace:*"`. `@repo/testing` is the exception: it exports its
-TypeScript sources and has no build - see `.claude/rules/testing.md`.
+TypeScript sources and has no build - see `.claude/rules/general/testing.md`.
 
 A package `apps/web` consumes is framework-free, so it also sets `"types": []`: in
 `tsconfig.json`, or in `tsconfig.build.json` only once it has tests that need Node types.

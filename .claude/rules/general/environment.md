@@ -66,7 +66,7 @@ static async register(user: NewUser, redirectUrl: string): Promise<RegisteredUse
 await UserManagement.register(user, env.get("AUTH_REDIRECT_URL"));
 ```
 
-It is the same rule as `.claude/rules/catalyst-sdk.md` - a wrapper takes and returns plain
+It is the same rule as `.claude/rules/general/catalyst-sdk.md` - a wrapper takes and returns plain
 values - and it is what makes the failure land in the route, which is what the variable
 configures.
 
@@ -87,7 +87,7 @@ Four steps, in order, and a fifth for a key read at module scope:
 5. A test value in `test.env` of `apps/<app>/vitest.config.mts`, as for the Zoho client
    keys `zoho-connections.ts` reads. Tests never see `.env`, so without it every test that
    imports the app fails at load. A key read per request is stubbed by the test that needs
-   it instead - see `.claude/rules/testing.md`.
+   it instead - see `.claude/rules/general/testing.md`.
 
 Then set it in the Catalyst Console before the next deploy that needs it.
 

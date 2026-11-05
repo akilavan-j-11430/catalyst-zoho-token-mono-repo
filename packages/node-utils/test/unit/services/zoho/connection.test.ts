@@ -216,7 +216,6 @@ describe("ZohoConnection grant source", () => {
       emailId: "asha@example.com",
       firstName: "Asha",
       lastName: "Rao",
-      isConfirmed: true,
     });
     repository.findRefreshToken.mockResolvedValue("refresh-1");
     accounts.refresh.mockResolvedValue({ accessToken: "access-1", expiresInSeconds: 3600 });

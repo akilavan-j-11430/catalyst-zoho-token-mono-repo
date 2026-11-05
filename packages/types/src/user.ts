@@ -5,6 +5,14 @@ export type NewUser = {
   emailId: string;
 };
 
+/** The Catalyst app user a request is signed in as. */
+export interface CurrentUser {
+  userId: string;
+  emailId: string;
+  firstName: string;
+  lastName: string;
+}
+
 /** A registered Catalyst app user, awaiting confirmation until they open the email. */
 export type RegisteredUser = {
   userId: string;

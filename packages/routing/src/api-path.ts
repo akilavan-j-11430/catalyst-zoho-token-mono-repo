@@ -9,6 +9,7 @@ export const ApiPath = {
   Ping: "/ping",
   Auth: "/auth",
   Register: "/register",
+  Me: "/me",
   ZohoToken: "/zoho-token",
   Connect: "/connect",
   Callback: "/callback",

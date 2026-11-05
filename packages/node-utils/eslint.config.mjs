@@ -8,6 +8,7 @@ import config, {
 // catalyst/ and repositories/ are the Catalyst seams and services/zoho/accounts.ts the Zoho
 // accounts one, so each vendor's casing stays there. The env test declares a variable name,
 // which is UPPER_SNAKE like any env key.
+// The user-management test feeds in Catalyst's own snake_case user record.
 export default [
   ...config,
   allowCatalystSdk(["src/catalyst/*.ts"]),
@@ -16,6 +17,7 @@ export default [
     "src/repositories/*.ts",
     "src/services/zoho/accounts.ts",
     "test/unit/utils/env.test.ts",
+    "test/unit/catalyst/user-management.test.ts",
   ]),
   allowTestsIn(["unit", "integration"]),
 ];

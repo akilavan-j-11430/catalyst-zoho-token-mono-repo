@@ -3,19 +3,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
 import { ApiPath } from "@repo/routing/api-path";
 import { catalystAuth } from "../catalyst-auth";
-import type { RegisteredUser } from "@repo/types/user";
+import type { CurrentUser, RegisteredUser } from "@repo/types/user";
 import { app } from "@/app";
 
-// `zcAuth.init` is faked for the whole workspace by test/setup.ts. The user registration
-// is faked here, so no request reaches Catalyst.
-const { registerUser } = vi.hoisted(() => ({ registerUser: vi.fn() }));
+// `zcAuth.init` is faked for the whole workspace by test/setup.ts. The user management
+// calls are faked here, so no request reaches Catalyst.
+const { registerUser, readCurrentUser } = vi.hoisted(() => ({
+  registerUser: vi.fn(),
+  readCurrentUser: vi.fn(),
+}));
 
 vi.mock("@repo/node-utils/catalyst/user-management", () => ({
-  UserManagement: { register: registerUser },
+  UserManagement: { register: registerUser, currentUser: readCurrentUser },
 }));
 
 const V1 = ApiPath.Api + ApiPath.V1;
 const REGISTER_PATH = V1 + ApiPath.Auth + ApiPath.Register;
+const ME_PATH = V1 + ApiPath.Me;
 
 const newUser = { firstName: "Asha", lastName: "Rao", emailId: "asha@example.com" };
 
@@ -82,5 +86,30 @@ describe("POST /api/v1/auth/register failures", () => {
     expect(failure.status).toBe(500);
     expect(failure.body).toEqual({ status: "error", message: "Something went wrong." });
     expect(registerUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/v1/me", () => {
+  it("answers the signed-in user, read with the User app", async () => {
+    const signedInUser: CurrentUser = { userId: "7", ...newUser };
+    readCurrentUser.mockResolvedValue(signedInUser);
+
+    const me = await request(app).get(ME_PATH);
+
+    expect(me.status).toBe(200);
+    expect(me.body).toEqual({ status: "success", data: signedInUser });
+    expect(catalystAuth.init).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+      scope: CatalystScope.User,
+    });
+  });
+
+  it("answers 401 without reading a user when the request carries no signed-in user", async () => {
+    catalystAuth.init.mockRejectedValue(new Error("missing user credentials"));
+
+    const rejection = await request(app).get(ME_PATH);
+
+    expect(rejection.status).toBe(401);
+    expect(rejection.body).toEqual({ status: "error", message: "Sign in to continue." });
+    expect(readCurrentUser).not.toHaveBeenCalled();
   });
 });

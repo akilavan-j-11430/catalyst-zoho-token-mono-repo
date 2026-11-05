@@ -106,10 +106,27 @@ has no `src/env.ts` for exactly that reason.
 Nothing Catalyst-related belongs in the environment at all. Project details and the
 caller's credentials ride on request headers, because `zcAuth.init(req)` is per request.
 
-## Not covered by this rule
+## `apps/web` reads one key
 
-`apps/web` reads no environment at all - no `process.env`, no `NEXT_PUBLIC_*`. Anything the
-browser needs comes from the API.
+`apps/web` reads exactly one variable, `NEXT_PUBLIC_API_URL`, and anything else the
+browser needs comes from the API. It is the one value the browser needs before it can
+reach the API at all: in the cloud Slate and AppSail are separate origins, so a deployed
+build is told where AppSail lives.
+
+- Read once, as a literal `process.env.NEXT_PUBLIC_API_URL`, in
+  `src/services/api/client.ts`. Next inlines it at `next build` and inlines nothing it
+  cannot see written out, so there is no template or `defineEnv` here - that is
+  `node-utils`, which the browser cannot import.
+- Set in **Console -> Slate -> web -> Environment Variables**, and left unset locally, where
+  calls stay relative and go through `apps/proxy`. `apps/web/.env.example` documents it.
+- `scripts/bundle.mjs` never stages a `.env*` file, so a local value cannot ship.
+- No `turbo.json` entry: turbo's Next.js inference already puts `NEXT_PUBLIC_*` in the
+  `build` cache key.
+
+Add no second key. A value the browser needs once it can reach the API is the API's to
+serve.
+
+## Not covered by this rule
 
 `turbo.json`'s `globalPassThroughEnv` forwards variables to local tasks and keeps them out
 of the cache key. It configures the build, not the runtime, and declaring a key there is
@@ -124,5 +141,5 @@ the inherited task definition. `apps/api/turbo.json` is that file: its `dev` tas
 through every key on the `src/env.ts` template and nothing else. The platform-injected
 reads above are set only when Catalyst runs the app, never under turbo, so they have no
 place there.
-`apps/web` reads no environment and `apps/proxy` has no turbo task that runs it, so
-neither has one.
+`apps/web` needs none for its one key (above), and `apps/proxy` has no turbo task that
+runs it, so neither has one.

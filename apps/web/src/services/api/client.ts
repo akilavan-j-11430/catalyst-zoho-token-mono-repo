@@ -23,10 +23,9 @@ export type { QueryValue, RequestOptions };
 
 export interface ApiClientOptions {
   /**
-   * Prefixed onto every path. Relative on purpose, unlike the server's client, which
-   * demands an absolute URL: `apps/proxy` gives the browser and the API one origin, and
-   * an absolute base would send the call cross-origin, arriving without the session
-   * cookie and without the Catalyst headers `zcAuth.init(req)` reads.
+   * Prefixed onto every path. Unlike the server's client, which demands an absolute URL,
+   * this one may be relative - locally `apps/proxy` gives the browser and the API one
+   * origin. `API_BASE_URL` below decides which.
    */
   baseUrl: string;
   /** Anything every call carries. Resolved per call, so an expiring token can refresh. */
@@ -307,10 +306,14 @@ export class ApiClient {
 }
 
 /**
- * The prefix lives here rather than on every path, and stays relative so the proxy keeps
- * the browser and the API on one origin.
+ * The prefix lives here rather than on every path. In the cloud Slate and AppSail are
+ * separate origins, so a deployed build is given the AppSail origin in
+ * `NEXT_PUBLIC_API_URL`, set in the Slate Console and inlined by `next build`. Locally
+ * it is unset and the path stays relative, through the proxy. Written out in full,
+ * because Next inlines only a literal `process.env.NEXT_PUBLIC_*` reference.
  */
-const API_BASE_URL = ApiPath.Api + ApiPath.V1;
+const API_BASE_URL =
+  (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "") + ApiPath.Api + ApiPath.V1;
 
 /** For routes that need a signed-in caller - the default. Every call carries a token. */
 export const api = new ApiClient({

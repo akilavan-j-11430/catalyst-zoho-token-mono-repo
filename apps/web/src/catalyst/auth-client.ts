@@ -22,6 +22,9 @@ export class AuthClient {
   private static readonly TOKEN_REFRESH_MARGIN_MS = 60_000;
 
   private static pendingSession: Promise<Authentication> | null = null;
+  /** The token in use. Kept apart from the request for the next one, so an expired token
+   *  is replaced before it is sent rather than after. */
+  private static heldToken: AuthToken | null = null;
   private static pendingToken: Promise<AuthToken> | null = null;
 
   /**
@@ -64,16 +67,28 @@ export class AuthClient {
    * the client for signed-in routes resolves it.
    */
   static async authHeaders(): Promise<Record<string, string>> {
+    const token = await AuthClient.currentAuthToken();
+    return { authorization: `Bearer ${token.accessToken}` };
+  }
+
+  /** Drops the token in use, so the next call is issued a new one. */
+  static discardToken(): void {
+    AuthClient.heldToken = null;
+  }
+
+  /** The held token while it has time left, else a new one. Concurrent callers share one
+   *  request, and a failed request is cleared so the next call tries again. */
+  private static async currentAuthToken(): Promise<AuthToken> {
+    const held = AuthClient.heldToken;
+    if (held !== null && Date.now() < held.refreshAt) {
+      return held;
+    }
     AuthClient.pendingToken ??= AuthClient.issueAuthToken();
     try {
-      const token = await AuthClient.pendingToken;
-      if (Date.now() >= token.refreshAt) {
-        AuthClient.pendingToken = null;
-      }
-      return { authorization: `Bearer ${token.accessToken}` };
-    } catch (error) {
+      AuthClient.heldToken = await AuthClient.pendingToken;
+      return AuthClient.heldToken;
+    } finally {
       AuthClient.pendingToken = null;
-      throw error;
     }
   }
 

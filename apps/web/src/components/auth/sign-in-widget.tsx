@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { appUrl, authSession } from "@/catalyst/auth-client";
+import { AuthClient } from "@/catalyst/auth-client";
 import { Loader } from "@/components/shared/loader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -77,11 +77,11 @@ export function SignInWidget() {
     mounted.current = true;
 
     let stop = (): void => undefined;
-    authSession()
+    AuthClient.session()
       .then((auth) =>
         auth.signIn(CONTAINER_ID, {
-          redirectUrl: appUrl("/"),
-          cssUrl: appUrl(STYLESHEET),
+          redirectUrl: AuthClient.appUrl("/"),
+          cssUrl: AuthClient.appUrl(STYLESHEET),
         }),
       )
       .then(() => {

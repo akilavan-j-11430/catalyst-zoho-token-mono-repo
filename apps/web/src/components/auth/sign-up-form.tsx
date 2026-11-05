@@ -9,7 +9,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { NewUser, RegisteredUser } from "@repo/types/user";
-import { registerUser } from "@/services/auth";
+import { AuthService } from "@/services/auth";
 import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/shared/loader";
@@ -66,7 +66,7 @@ export function SignUpForm() {
 
   // Failures surface as a toast from the query client, so there is nothing to catch here.
   const { mutate, isPending } = useMutation({
-    mutationFn: registerUser,
+    mutationFn: (user: NewUser) => AuthService.registerUser(user),
     onSuccess: (registered: RegisteredUser) => {
       toast.success("Check your email", {
         description: `We sent a confirmation link to ${registered.emailId}. Open it to set your password and finish signing up.`,

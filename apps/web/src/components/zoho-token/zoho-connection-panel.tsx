@@ -5,11 +5,7 @@ import { ArrowUpRight, CircleCheck, CircleDashed, PlugZap, Unplug } from "lucide
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  disconnectZoho,
-  fetchZohoConnectionStatus,
-  zohoConnectUrl,
-} from "@/services/zoho-token";
+import { ZohoTokenService } from "@/services/zoho-token";
 
 const STATUS_KEY = ["zohoToken", "status"];
 
@@ -31,10 +27,10 @@ export function ZohoConnectionPanel() {
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: STATUS_KEY,
-    queryFn: fetchZohoConnectionStatus,
+    queryFn: () => ZohoTokenService.fetchStatus(),
   });
   const { mutate, isPending } = useMutation({
-    mutationFn: disconnectZoho,
+    mutationFn: () => ZohoTokenService.disconnect(),
     onSuccess: (status) => {
       queryClient.setQueryData(STATUS_KEY, status);
       toast.success("Zoho disconnected.");
@@ -65,7 +61,7 @@ export function ZohoConnectionPanel() {
           Disconnect
         </Button>
       ) : (
-        <Button onClick={() => window.location.assign(zohoConnectUrl())}>
+        <Button onClick={() => window.location.assign(ZohoTokenService.connectUrl())}>
           Connect
           <ArrowUpRight aria-hidden />
         </Button>

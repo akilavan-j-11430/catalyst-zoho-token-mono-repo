@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { currentUser, type SignedInUser } from "@/catalyst/auth-client";
+import { AuthClient, type SignedInUser } from "@/catalyst/auth-client";
 import { Loader } from "@/components/shared/loader";
 
 const SignedInUserContext = createContext<SignedInUser | null>(null);
@@ -29,7 +29,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // `replace`, not `push`: otherwise Back from /sign-in lands here and bounces.
-    currentUser()
+    AuthClient.currentUser()
       .then((found) => (found === null ? router.replace("/sign-in") : setUser(found)))
       .catch(() => router.replace("/sign-in"));
   }, [router]);

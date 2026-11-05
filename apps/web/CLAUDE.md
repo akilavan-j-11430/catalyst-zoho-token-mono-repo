@@ -25,7 +25,7 @@ src/services/api/client.ts     transport - returns the whole response, like the 
 Components import a domain file and never reach below it.
 
 ```ts
-const { mutate } = useMutation({ mutationFn: registerUser });
+const { mutate } = useMutation({ mutationFn: (user: NewUser) => AuthService.registerUser(user) });
 ```
 
 `.claude/rules/web-data-access.md` is the full rule and loads automatically here - how to

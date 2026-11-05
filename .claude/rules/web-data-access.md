@@ -53,8 +53,9 @@ tempting shortcut:
   and never from a string literal. A value in the path goes through `encodeURIComponent`
   right there - see below.
 - **A service function never touches react-query**, and a component never touches the
-  client. The service is a plain async function; `useQuery`/`useMutation` wrap it at the
-  call site. That is what keeps it callable from anywhere and testable with no provider.
+  client. The service is a class of plain async static methods, as `code-design.md` asks
+  of every module; `useQuery`/`useMutation` wrap it at the call site. That is what keeps
+  it callable from anywhere and testable with no provider.
 - **A component never imports from `src/services/api/`.** It imports a domain file. The
   one exception is `ApiError`, which the error layer needs to decide what a toast says.
 
@@ -67,10 +68,13 @@ on every path, the way the server's `HttpClient` takes them:
 
 ```ts
 // src/services/warranty.ts
-export async function fetchWarranty(id: string): Promise<Warranty> {
-  return recordOf<Warranty>(
-    await api.get(`${ApiPath.Warranties}/${encodeURIComponent(id)}`),
-  );
+/** Gateway: everything this app asks of the warranty routes. */
+export class WarrantyService {
+  static async fetchWarranty(id: string): Promise<Warranty> {
+    return ApiClient.recordOf<Warranty>(
+      await api.get(`${ApiPath.Warranties}/${encodeURIComponent(id)}`),
+    );
+  }
 }
 ```
 
@@ -83,8 +87,9 @@ the same response from the same type, so the two cannot drift.
 typed parameter, and the value goes through `encodeURIComponent`.** Not a
 `"/warranties/:id"` template substituted at the call site.
 
-The parameter is checked: the compiler knows `fetchWarranty` needs one string, so a missing
-or misspelled argument is a compile error rather than a URL reading `/warranties/undefined`.
+The parameter is checked: the compiler knows `WarrantyService.fetchWarranty` needs one
+string, so a missing or misspelled argument is a compile error rather than a URL reading
+`/warranties/undefined`.
 A `:id` template is a string until it reaches the wire, and nothing catches the typo.
 
 `encodeURIComponent` is not optional. A ROWID is digits and survives
@@ -151,8 +156,8 @@ keeps the browser and the API on one origin; an absolute base would send the cal
 cross-origin, where it arrives with no session cookie and none of the Catalyst headers
 `zcAuth.init(req)` reads.
 
-**`recordOf(response)` is how a service reads our own API.** `apps/api` answers every route
-with `{ status, data }`, and `recordOf` is the only place that knows it, so a service
+**`ApiClient.recordOf(response)` is how a service reads our own API.** `apps/api` answers every
+route with `{ status, data }`, and `recordOf` is the only place that knows it, so a service
 returns a record and never the envelope around it. Reach for `body.json()` directly only
 when a route does not use the envelope.
 
@@ -170,11 +175,11 @@ handling that `useQuery` already has, and it bypasses the error layer below.
 ```ts
 const { data } = useQuery({
   queryKey: ["warranty", id],
-  queryFn: () => fetchWarranty(id),
+  queryFn: () => WarrantyService.fetchWarranty(id),
 });
 
 const { mutate, isPending } = useMutation({
-  mutationFn: registerUser,
+  mutationFn: (user: NewUser) => AuthService.registerUser(user),
   onSuccess: (registered) => toast.success(`Invited ${registered.emailId}.`),
 });
 ```

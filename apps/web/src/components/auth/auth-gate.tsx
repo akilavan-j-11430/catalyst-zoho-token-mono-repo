@@ -18,10 +18,9 @@ export function useSignedInUser(): SignedInUser {
 }
 
 /**
- * Gates everything below it on a Catalyst session: children never render for a
- * signed-out visitor, who is sent to sign-in instead. The check is client-side
- * because a Catalyst session can only be validated by asking the platform, which
- * Next middleware cannot do without a per-request call out.
+ * Provides the signed-in user to everything below it, and renders nothing until that user
+ * is known. The (app) layout has already turned a signed-out visitor away on the server, so
+ * this only loads who they are. If the session has ended since, it sends them to sign-in.
  */
 export function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SignedInUser | null>(null);

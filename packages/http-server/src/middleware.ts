@@ -17,8 +17,8 @@ import { UserManagement } from "@repo/node-utils/catalyst/user-management";
 import { CatalystError } from "@repo/node-utils/errors/catalyst-error";
 import { randomUUID } from "crypto";
 import { zcAuth } from "@zcatalyst/auth";
-import { HttpError } from "@/errors/http-error";
-import { toErrorResponse } from "@/utils/api";
+import { HttpError } from "@/http-error";
+import { toErrorResponse } from "@/response";
 
 /** Records the timing of request execution from start to finish. */
 export function recordRequestTiming(

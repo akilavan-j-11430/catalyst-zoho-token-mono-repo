@@ -1,11 +1,12 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { appUrl, authSession, type SignedInUser } from "@/catalyst/auth-client";
+import type { CurrentUser } from "@repo/types/user";
+import { AuthClient } from "@/catalyst/auth-client";
 import { useSignedInUser } from "@/components/auth/auth-gate";
 import { Button } from "@/components/ui/button";
 
-function displayName(user: SignedInUser): string {
+function displayName(user: CurrentUser): string {
   const full = [user.firstName, user.lastName].filter(Boolean).join(" ");
   return full === "" ? user.emailId : full;
 }
@@ -21,7 +22,7 @@ export function SignedInAccount() {
       </div>
       <Button
         variant="outline"
-        onClick={() => void authSession().then((auth) => auth.signOut(appUrl("/sign-in")))}
+        onClick={() => void AuthClient.signOut("/sign-in")}
       >
         <LogOut aria-hidden />
         Sign out

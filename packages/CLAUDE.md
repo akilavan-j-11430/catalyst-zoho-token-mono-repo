@@ -1,13 +1,14 @@
 # packages/
 
-Shared code for the monorepo. All seven are private and consumed as `"workspace:*"`.
+Shared code for the monorepo. All eight are private and consumed as `"workspace:*"`.
 
 | Package | Holds |
 |---|---|
 | `@repo/routing` | API path segments (`ApiPath`) shared by `apps/api` and `apps/web` |
-| `@repo/case-conversion` | `CamelCase` - renames a vendor's snake_case/kebab-case keys, for `node-utils` and `apps/web` |
+| `@repo/case-conversion` | `CamelCase` - renames a vendor's snake_case/kebab-case keys, for `node-utils`; framework-free, so `apps/web` may use it too |
 | `@repo/types` | API response shapes shared by `apps/api` and `apps/web` |
 | `@repo/node-utils` | `ExecutionContext`, `logger`, `env`, `RuntimeError`, `HttpClient`, `PLimit`, `PLimitPerKey`, the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user-management`) plus the resource handles built from them, the table repositories (`ZohoConnectionRepository`), and the Zoho connection (`services/zoho/`) |
+| `@repo/http-server` | The Express plumbing every app that serves HTTP shares - `initExecutionContext`, `initCatalystScopes`, `validateUserAuthentication`, `errorHandler`, `HttpError`, the response builders, and `RequestInput` for zod-checked request input. The one package that may import `express` |
 | `@repo/typescript-config` | `base.json` that every tsconfig extends |
 | `@repo/eslint-config` | flat ESLint config: the import boundaries and the camelCase naming rule |
 | `@repo/testing` | `VitestProjects` - the shared Vitest settings; later, any test fake a second workspace needs. Dev-only, never imported from `src/` |
@@ -47,9 +48,11 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 ## Rules
 
 - **Keep them framework-free.** Both an Express app and a Next.js app import these.
-  No `express`, no `react`, no Next.js imports.
+  No `express`, no `react`, no Next.js imports. The one exception is
+  `@repo/http-server`, which holds the Express plumbing every HTTP app shares - see
+  `.claude/skills/deployable-steps.md`.
 - **`node-utils/src/catalyst/` is the only directory that may import a Catalyst
-  SDK.** ESLint enforces it. See `.claude/rules/catalyst-sdk.md`.
+  SDK.** ESLint enforces it. See `.claude/rules/general/catalyst-sdk.md`.
 - **Catalyst resources are declared once, in `catalyst/resources.ts`** - one
   `export const` per table, bucket, cache segment and job, built with the wrapper's
   `create` factory. Apps import the handle; they never construct a wrapper themselves.
@@ -65,7 +68,7 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 - kebab-case file names, `@/*` for internal imports.
 - `HttpClient` (`src/http/`) is the only way anything in this repo talks to an external
   service. Types live in `src/types/`, named constants in `src/enums/`, and the transport
-  seam is `src/types/http.ts` - see `.claude/rules/outbound-http.md` before adding an HTTP
+  seam is `src/types/http.ts` - see `.claude/rules/general/outbound-http.md` before adding an HTTP
   dependency.
 - **These packages own the env mechanism, never a key.** `src/utils/env.ts` exports
   `defineEnv<T>()`, which is generic and names no variable; each app declares what it
@@ -74,7 +77,7 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
   `ZohoConnection.create(credentials, grant)` - so
   the app that owns the variable is the one that reads it, and the failure lands where the
   value is used. No file under `packages/` calls `process.env` except the mechanism
-  itself. See `.claude/rules/environment.md`.
+  itself. See `.claude/rules/general/environment.md`.
 
 ## A new package
 
@@ -85,7 +88,7 @@ extending it with `noEmit: false` / `rootDir: ./src` / `outDir: ./dist` /
 `include: ["src"]`, and
 `"build": "tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json"`. Then add
 it to consumers as `"workspace:*"`. `@repo/testing` is the exception: it exports its
-TypeScript sources and has no build - see `.claude/rules/testing.md`.
+TypeScript sources and has no build - see `.claude/rules/general/testing.md`.
 
 A package `apps/web` consumes is framework-free, so it also sets `"types": []`: in
 `tsconfig.json`, or in `tsconfig.build.json` only once it has tests that need Node types.

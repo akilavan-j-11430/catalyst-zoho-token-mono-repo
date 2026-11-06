@@ -10,17 +10,20 @@ running full-stack application in a few minutes.
 - A **Next.js 16** frontend (React 19, Tailwind 4) deployed as a Catalyst Slate app.
 - An **Express 5** API on the modular `@zcatalyst/*` SDKs, deployed as a Catalyst AppSail, with
   per-request execution context, structured logging, and a consistent response shape.
-- A **reverse proxy** AppSail that gives the whole stack a single origin and enforces
-  Catalyst login at the edge.
+- A **reverse proxy** AppSail, for local development only, that gives the stack a single
+  origin and enforces Catalyst login at the edge.
+- **Cross-origin auth for the cloud**, where Slate and AppSail run on separate domains: the
+  browser calls the API with a Catalyst token rather than a session cookie.
 - **Shared TypeScript packages** for response types, runtime utilities, and a common
   tsconfig - wired up with pnpm workspaces.
 - A **Turborepo pipeline** so builds are cached and ordered correctly, plus one-command
   bundle and deploy.
 
-- A **Zoho OAuth connection** at `/api/v1/zoho-token/*`: the authorization-code redirect
-  flow with CSRF state, the refresh token stored in a Data Store table this repo owns,
-  and the access token minted on demand behind an in-memory LRU over Catalyst Cache.
-  Credentials live in `.env`, never in a committed Catalyst file.
+- A **Zoho OAuth connection** at `/api/v1/zoho-token/*`: the authorization-code flow with
+  signed CSRF state, finished by a web page that posts the code to the API with the
+  bearer token. The refresh token is stored in a Data Store table this repo owns, and the
+  access token minted on demand behind an in-memory LRU over Catalyst Cache. Credentials
+  live in `.env`, never in a committed Catalyst file.
 
 It is deliberately small. Beyond the Zoho connection there is no domain layer, no auth
 UI, and no example CRUD resource - just the plumbing that every Catalyst solution ends
@@ -53,22 +56,28 @@ up needing, done once and done consistently.
         +---------------------+   +----------------------+
 ```
 
-**Why the proxy exists, and why it is local only.** It would be simpler to let the
-browser call the API directly, but then you have two origins: one for the frontend and
-one for the API. That means CORS configuration, a second place to enforce login, and
-cookies that do not travel cleanly between the two. The proxy collapses that into a
-single origin and sets `catalyst_auth: true`, so login is enforced once, at the edge,
-before any request reaches your code.
+**Why the proxy exists, and why it is local only.** Locally the proxy puts the web app
+and the API behind one origin. The browser's session cookie and the Catalyst headers
+`catalyst serve` injects then reach the API with no extra setup, and `catalyst_auth:
+true` enforces login once, at the edge. It is listed in `catalyst.json` so `catalyst
+serve` can run it, and `pnpm deploy` ships only `appsail:api` and `slate:web`. **Do not
+add it to the deploy list.**
 
-In the cloud, Catalyst provides that single origin and auth gate natively - so **the
-proxy is never deployed**. It exists purely to reproduce production's shape on your
-machine. It is listed in `catalyst.json` so `catalyst serve` can run it, and
-`pnpm deploy` ships only `appsail:api` and `slate:web`. Do not add it to the deploy
-list.
+**The cloud has two origins.** Slate serves the web app from `*.onslate.com` and AppSail
+serves the API from `*.catalystappsail.com`, and the session cookie does not travel
+between them. So the deployed web app:
 
-The local port map mirrors the deployed topology exactly, so a request path that works
-in `pnpm dev` works after `pnpm deploy`. The frontend always calls `/api/...` as a
-relative path and never needs to know where the API lives.
+- calls the API at an absolute URL, `NEXT_PUBLIC_API_URL`, set in the Slate Console;
+- sends `Authorization: Bearer <token>` on every call that needs a signed-in user, where
+  the token comes from the web SDK's `generateAuthToken()`.
+
+Locally `NEXT_PUBLIC_API_URL` is unset, so the same calls stay relative (`/api/...`) and go
+through the proxy. A service picks its client by route: `api` sends the token, and
+`publicApi` sends none, for signed-out routes such as sign-up.
+
+In the cloud nothing sits in front of the API, so each route enforces its own login: a
+route that mounts `initCatalystScopes([CatalystScope.User])` answers 401 to a caller with
+no valid token.
 
 **Two things to internalise before you start.** First, the entry port is assigned by
 the Catalyst CLI - it takes the first free port from 3000 upward, so in practice it is
@@ -152,11 +161,10 @@ Values this repo's own code reads. Each is a key on the owning app's template - 
 | `ZOHO_TOKEN_CLIENT_SECRET` | `apps/api` | Its secret. |
 | `ZOHO_TOKEN_SCOPES` | `apps/api` | Comma-separated scopes the consent screen asks for, e.g. `ZohoCRM.modules.ALL,ZohoCRM.settings.READ`. |
 | `ZOHO_TOKEN_ACCOUNTS_URL` | `apps/api` | The DC's accounts server, scheme and all, e.g. `https://accounts.zoho.in`. |
-| `ZOHO_TOKEN_CALLBACK_ORIGIN` | `apps/api` | The origin the Zoho callback is built on, locally the one `catalyst serve` prints. Plus `/api/v1/zoho-token/callback`, it must equal the client's Authorized Redirect URI. |
-| `WEB_APP_ORIGIN` | `apps/api` | The web app's origin. The browser goes back to its home page once the Zoho connection exists. |
+| `ZOHO_TOKEN_CALLBACK_ORIGIN` | `apps/api` | The web app's origin - locally the one `catalyst serve` prints, in the cloud the Slate domain. Zoho sends the browser back to its `/zoho-token/callback` page, so that full url must equal the client's Authorized Redirect URI. |
 
 These never go in `app-config.json` or any other Catalyst file - that file is committed,
-and `.env` is not. `.claude/rules/environment.md` is the full rule.
+and `.env` is not. `.claude/rules/general/environment.md` is the full rule.
 
 **4. Start everything**
 
@@ -238,8 +246,8 @@ curl http://localhost:3001/api/v1/nope
 | `@repo/routing` | `ApiPath` segments, combined with `+` - the API mounts them and the web app calls them, so no path is a string literal in either. |
 | `@repo/types` | `RecordResponse`, `PagedRecordResponse`, `ErrorResponse` - imported by both the API and the web app so the contract is written once. |
 | `@repo/node-utils` | `ExecutionContext` over `AsyncLocalStorage`, a `logger` that stamps execution IDs, `RuntimeError`, `env`, `HttpClient`, and the Catalyst wrappers plus the resource handles built from them. |
-| `@repo/case-conversion` | `CamelCase.convertKeys` - renames a vendor's snake_case or kebab-case keys at any depth, for `node-utils` and the web app. |
-| `@repo/testing` | `VitestProjects.forWorkspace`, the Vitest settings every tested workspace starts from. Dev-only - see `.claude/rules/testing.md`. |
+| `@repo/case-conversion` | `CamelCase.convertKeys` - renames a vendor's snake_case or kebab-case keys at any depth, for `node-utils`. Framework-free, so the web app may use it too. |
+| `@repo/testing` | `VitestProjects.forWorkspace`, the Vitest settings every tested workspace starts from. Dev-only - see `.claude/rules/general/testing.md`. |
 | `@repo/typescript-config` | `base.json`. Strict mode, `noUncheckedIndexedAccess`, ES2022. Every other tsconfig extends it. |
 | `@repo/eslint-config` | Shared flat ESLint config. Each workspace spreads it into its own `eslint.config.mjs` and adds its exemptions - `allowTestsIn([...])` when it has tests. |
 
@@ -315,8 +323,19 @@ Which is `turbo run bundle && catalyst deploy --only appsail:api,slate:web`:
    in - as the `web` Slate app, which Slate then builds.
 
 **The proxy is not in that list, and must not be.** It is a local-development
-component only - Catalyst gives you the single origin and auth gate natively in the
-cloud. Deploying it would put a redundant hop in front of your app.
+component only. In the cloud the web app reaches the API directly, cross-origin.
+
+**Two settings make the cross-origin call work**, once per environment:
+
+1. **Authorized Domains.** Console -> Authentication -> Whitelisting -> Authorized
+   Domains: add the Slate app's domain with CORS enabled. Catalyst then adds the CORS
+   headers to the API's responses itself. Do not add CORS middleware to `apps/api`: a second
+   `Access-Control-Allow-Origin` header makes the browser reject the response.
+2. **`NEXT_PUBLIC_API_URL`.** Console -> Slate -> web -> Environment Variables: the `api`
+   AppSail's URL, as the Console shows it. Next inlines it at build time, so it must be
+   set before Slate builds, and a change needs a rebuild. `apps/web/.env.example`
+   documents it. A local `apps/web/.env` never reaches Slate, because the bundle leaves
+   it out.
 
 **Environment variables are not carried by the deploy.** `app-config.json` declares no
 `env_variables`, on purpose - it is committed, so a value there is a value in git. Set
@@ -357,8 +376,9 @@ they are private and never published.
 3. Its entry in `catalyst.json` (`name` and `source`).
 4. The `--only appsail:<name>` flags in the root `deploy` script.
 
-If you do not need the split, the proxy is the piece to drop first - but then you own
-CORS and auth enforcement yourself.
+The proxy is local only, so dropping it changes only local development. Local
+development would then have the same two origins as the cloud, and need the same CORS
+and token setup.
 
 **Add a shared package.** Create `packages/<name>` with `"private": true`,
 `"type": "module"`, the same subpath `exports` block as the existing packages, a

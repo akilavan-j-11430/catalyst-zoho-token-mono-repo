@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { ApiPath } from "@repo/routing/api-path";
-import { toRecordResponse } from "@/utils/api";
+import { toRecordResponse } from "@repo/http-server/response";
 
 export const pingRouter: Router = Router();
 

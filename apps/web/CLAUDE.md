@@ -14,6 +14,10 @@ and everything else here. This app has **no rewrite or proxy config of its own**
 request made straight to `:4000/api/...` gets a Next.js 404, and one made to `:8000` is
 cross-origin and missing the Catalyst headers the SDK needs.
 
+In the cloud there is no proxy. Slate and AppSail are separate origins, so the deployed
+build calls AppSail at `NEXT_PUBLIC_API_URL`, and `api` sends a bearer token from
+`AuthClient.authHeaders()` in place of the session cookie.
+
 Call it through `src/services/`, never `fetch` in a component:
 
 ```
@@ -25,20 +29,40 @@ src/services/api/client.ts     transport - returns the whole response, like the 
 Components import a domain file and never reach below it.
 
 ```ts
-const { mutate } = useMutation({ mutationFn: registerUser });
+const { mutate } = useMutation({ mutationFn: (user: NewUser) => AuthService.registerUser(user) });
 ```
 
-`.claude/rules/web-data-access.md` is the full rule and loads automatically here - how to
+`.claude/rules/web/web-data-access.md` is the full rule and loads automatically here - how to
 add a call, how query keys are shaped, and what a call site is and is not responsible for.
 
 Shapes both sides use live in `@repo/types` (`@repo/types/api` for the envelope,
 `@repo/types/user` for the user shapes) - defined once, never redeclared here.
 
+## Who may see a page
+
+The server decides, before any HTML is sent. Catalyst stamps every request to this app with
+`x-zc-user-type` (`catalyst serve` locally, Slate when deployed), and
+`RequestSession.isSignedIn` (`src/catalyst/request-session.ts`) reads it:
+
+- `app/(app)/layout.tsx` sends a signed-out visitor to `/sign-in`; `app/(auth)/layout.tsx`
+  sends a signed-in one to `/`. Both groups therefore render per request, never prerendered.
+- Only `project-user` counts. An anonymous visitor on Slate arrives as `admin`, so a
+  presence check would let everyone in.
+- Never log or echo request headers from a layout or route handler. The same request carries
+  Catalyst credentials in its other `x-zc-*` headers.
+- A layout re-runs on a full load, not on a soft navigation. So when a session ends while a
+  page is open, the api answers 401, and `QueryProvider` sends the visitor to `/sign-in`
+  with `router.replace` rather than showing a toast. The api client never handles a 401
+  itself.
+
+What the browser shows is display only. Data stays protected by the api checking the token
+on every request.
+
 ## Data fetching, forms and errors
 
 Three libraries, each with one job. `@tanstack/react-query` owns server state,
 `react-hook-form` owns form state, `sonner` renders the toasts - and
-`.claude/rules/web-data-access.md` covers the first two in full.
+`.claude/rules/web/web-data-access.md` covers the first two in full.
 
 What belongs here is the toast, because it is styling rather than data flow.
 `components/ui/sonner.tsx` is the vendored Toaster, at sonner's own top-center position and

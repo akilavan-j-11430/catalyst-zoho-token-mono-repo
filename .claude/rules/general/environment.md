@@ -66,7 +66,7 @@ static async register(user: NewUser, redirectUrl: string): Promise<RegisteredUse
 await UserManagement.register(user, env.get("AUTH_REDIRECT_URL"));
 ```
 
-It is the same rule as `.claude/rules/catalyst-sdk.md` - a wrapper takes and returns plain
+It is the same rule as `.claude/rules/general/catalyst-sdk.md` - a wrapper takes and returns plain
 values - and it is what makes the failure land in the route, which is what the variable
 configures.
 
@@ -87,7 +87,7 @@ Four steps, in order, and a fifth for a key read at module scope:
 5. A test value in `test.env` of `apps/<app>/vitest.config.mts`, as for the Zoho client
    keys `zoho-connections.ts` reads. Tests never see `.env`, so without it every test that
    imports the app fails at load. A key read per request is stubbed by the test that needs
-   it instead - see `.claude/rules/testing.md`.
+   it instead - see `.claude/rules/general/testing.md`.
 
 Then set it in the Catalyst Console before the next deploy that needs it.
 
@@ -106,10 +106,28 @@ has no `src/env.ts` for exactly that reason.
 Nothing Catalyst-related belongs in the environment at all. Project details and the
 caller's credentials ride on request headers, because `zcAuth.init(req)` is per request.
 
-## Not covered by this rule
+## `apps/web` reads one key per backend it calls
 
-`apps/web` reads no environment at all - no `process.env`, no `NEXT_PUBLIC_*`. Anything the
-browser needs comes from the API.
+`apps/web` reads one variable for each backend the browser calls - an AppSail or an
+Advanced I/O function. Today that is only `NEXT_PUBLIC_API_URL`, for `api`, and anything
+else the browser needs comes from a backend. It is the one value the browser needs before
+it can reach that backend at all: in the cloud Slate and each backend are separate origins,
+so a deployed build is told where each one lives.
+
+- Read once, as a literal `process.env.NEXT_PUBLIC_<NAME>_URL`, in
+  `src/services/api/client.ts`, beside that backend's clients. Next inlines it at
+  `next build` and inlines nothing it cannot see written out, so there is no template or
+  `defineEnv` here - that is `node-utils`, which the browser cannot import.
+- Set in **Console -> Slate -> web -> Environment Variables**, and left unset locally, where
+  calls stay relative and go through `apps/proxy`. `apps/web/.env.example` documents it.
+- `scripts/bundle.mjs` never stages a `.env*` file, so a local value cannot ship.
+- No `turbo.json` entry: turbo's Next.js inference already puts `NEXT_PUBLIC_*` in the
+  `build` cache key.
+
+Add a key only for a new backend the browser calls - `.claude/skills/deployable-steps.md` has the steps. A
+value the browser needs once it can reach a backend is that backend's to serve.
+
+## Not covered by this rule
 
 `turbo.json`'s `globalPassThroughEnv` forwards variables to local tasks and keeps them out
 of the cache key. It configures the build, not the runtime, and declaring a key there is
@@ -124,5 +142,5 @@ the inherited task definition. `apps/api/turbo.json` is that file: its `dev` tas
 through every key on the `src/env.ts` template and nothing else. The platform-injected
 reads above are set only when Catalyst runs the app, never under turbo, so they have no
 place there.
-`apps/web` reads no environment and `apps/proxy` has no turbo task that runs it, so
-neither has one.
+`apps/web` needs none for its one key (above), and `apps/proxy` has no turbo task that
+runs it, so neither has one.

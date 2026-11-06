@@ -31,7 +31,7 @@ what the app asks of Zoho across two places.
 ## Calling a Zoho API
 
 Ask for the token per request, inside the `headers` resolver of that service's
-`HttpClient` (see `.claude/rules/outbound-http.md`):
+`HttpClient` (see `.claude/rules/general/outbound-http.md`):
 
 ```ts
 import { HttpHeader } from "@repo/node-utils/enums/http-header";
@@ -120,8 +120,26 @@ try {
 }
 ```
 
-`NotConnected` means no refresh token is usable for that user. The fix is the consent flow
-at `/api/v1/zoho-token/connect`, which the web app starts.
+`NotConnected` means no refresh token is usable for that user. The fix is the consent flow,
+which the web app starts - see "The consent flow" below.
+
+## The consent flow
+
+The browser reaches the api only through fetch calls that carry its bearer token - in the
+cloud Slate and AppSail are separate origins and no cookie crosses. So nothing in the flow
+is a navigation to the api, and the api never redirects:
+
+| Step | Who | What |
+|---|---|---|
+| 1 | web app | `GET /api/v1/zoho-token/connect` answers `{ consentUrl }`, or 409 for a connected user |
+| 2 | browser | goes to `consentUrl`, Zoho's consent screen |
+| 3 | Zoho | sends the browser to the web app's `/zoho-token/callback?code&state` page |
+| 4 | web app | that page posts `{ code, state }` to `POST /api/v1/zoho-token/callback`, which stores the grant, and goes home |
+
+The redirect uri is the web page, built from `WebPath` (`@repo/routing/web-path`) on
+`ZOHO_TOKEN_CALLBACK_ORIGIN` - the web app's origin. The Zoho client's Authorized Redirect
+URI must be exactly that url. Do not point Zoho at an api route: Zoho's redirect carries
+no bearer token, so the api could not tell whose grant it is.
 
 ## The connection's lifecycle
 
@@ -175,5 +193,5 @@ instances' LRUs. Another instance may keep serving the old access token until it
 which is at most an hour, and may report `isConnected` from its cached refresh token until
 its next mint is rejected.
 
-A user who denies consent comes back to the callback with `error` and no code. The route
-sends them to the web app's home page, and nothing is stored.
+A user who denies consent comes back to the callback page with `error` and no code. The
+page tells them so and goes home without calling the api, so nothing is stored.

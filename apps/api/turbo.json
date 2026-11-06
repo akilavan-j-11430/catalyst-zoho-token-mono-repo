@@ -10,8 +10,7 @@
         "ZOHO_TOKEN_CLIENT_SECRET",
         "ZOHO_TOKEN_SCOPES",
         "ZOHO_TOKEN_ACCOUNTS_URL",
-        "ZOHO_TOKEN_CALLBACK_ORIGIN",
-        "WEB_APP_ORIGIN"
+        "ZOHO_TOKEN_CALLBACK_ORIGIN"
       ]
     }
   }

@@ -3,9 +3,9 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 const USE_HTTP_CLIENT =
-  "Use HttpClient from @repo/node-utils/http/http-client. See .claude/rules/outbound-http.md.";
+  "Use HttpClient from @repo/node-utils/http/http-client. See .claude/rules/general/outbound-http.md.";
 const USE_CATALYST_PACKAGE =
-  "Call Catalyst through @repo/node-utils/catalyst/*. See .claude/rules/catalyst-sdk.md.";
+  "Call Catalyst through @repo/node-utils/catalyst/*. See .claude/rules/general/catalyst-sdk.md.";
 
 // Exact specifiers, not patterns: a "http" pattern is glob-matched and would also
 // reject every import under an http/ directory.
@@ -31,7 +31,7 @@ const catalystSdkPatterns = [
 ];
 
 const KEEP_TEST_TOOLING_IN_TESTS =
-  "Test tooling stays under test/ - see .claude/rules/testing.md. Bundled into src/, it ships.";
+  "Test tooling stays under test/ - see .claude/rules/general/testing.md. Bundled into src/, it ships.";
 
 const testToolingImports = ["vitest", "supertest", "@repo/testing"].map((name) => ({
   name,
@@ -74,7 +74,7 @@ function restrictedImports({
 
 // camelCase for everything this repo names. A vendor's casing (`email_id`, `ROWID`) is
 // allowed only in the files that talk to that vendor - see allowVendorNames and
-// .claude/rules/readable-code.md.
+// .claude/rules/general/readable-code.md.
 const camelCaseNaming = [
   "error",
   { selector: "default", format: ["camelCase"], leadingUnderscore: "allow" },
@@ -152,7 +152,7 @@ export const testFileBan = {
         selector: "Program",
         message:
           "A test is a *.test.ts file under test/unit/ or test/integration/ of a workspace " +
-          "that runs that kind - see .claude/rules/testing.md.",
+          "that runs that kind - see .claude/rules/general/testing.md.",
       },
     ],
   },

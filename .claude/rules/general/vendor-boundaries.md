@@ -85,7 +85,7 @@ vendor's (`ROWID`).
 Known, accepted, and the first things a migration touches:
 
 - Routes that call Catalyst mount `initCatalystScopes([CatalystScope.X])`
-  (`apps/api/src/middleware.ts`), and repositories and wrappers pick a `CatalystScope` in
+  (`@repo/http-server/middleware`), and repositories and wrappers pick a `CatalystScope` in
   `runIn`. Removing Catalyst deletes those lines.
-- `apps/api/src/middleware.ts` calls `zcAuth.init` to build the per-request app.
+- `packages/http-server/src/middleware.ts` calls `zcAuth.init` to build the per-request app.
 - `apps/api/src/framework/catalyst-logger.ts` writes to the AppSail log descriptor.

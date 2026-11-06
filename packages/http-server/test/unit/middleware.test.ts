@@ -3,8 +3,8 @@ import { describe, expect, it, vi, type Mock } from "vitest";
 import { Catalyst } from "@repo/node-utils/catalyst/catalyst";
 import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
 import { ExecutionContext, runWithContext } from "@repo/node-utils/framework/async-context";
-import { catalystAuth } from "../catalyst-auth";
-import { HttpError } from "@/errors/http-error";
+import { catalystAuth } from "@repo/testing/catalyst-auth";
+import { HttpError } from "@/http-error";
 import { initCatalystScopes } from "@/middleware";
 
 interface ScopeGuardRun {

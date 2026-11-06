@@ -12,19 +12,15 @@ src/
 |-- index.ts              startup: log timezone, listen on the port
 |-- app.ts                the Express app - middleware order, route mounting
 |-- env.ts                every environment variable this app reads
-|-- zoho-connections.ts   the app's one ZohoConnection, built from env - see .claude/rules/zoho-token.md
-|-- middleware.ts         execution context, request timing, terminal error handler
+|-- zoho-connections.ts   the app's one ZohoConnection, built from env - see .claude/rules/general/zoho-token.md
 |-- routes/api-router.ts  the only place a router mounts
 |-- routes/ping.ts        reference route - copy this shape
 |-- routes/auth.ts        POST /auth/register - registers a Catalyst app user
-|-- routes/zoho-token.ts  GET connect, callback, status; POST disconnect
-|-- errors/http-error.ts  typed failures that map to HTTP statuses
-|-- utils/api.ts          response builders
+|-- routes/me.ts          GET /me - the app user the request is signed in as
+|-- routes/zoho-token.ts  GET connect, status; POST callback, disconnect
 `-- framework/catalyst-logger.ts   console -> Catalyst log pipe, imported for side effect
 test/
-|-- setup.ts              fakes zcAuth.init for every test
-|-- catalyst-auth.ts      catalystAuth - the fake, which a test controls
-|-- unit/                 middleware and helpers, called directly
+|-- setup.ts              fakes zcAuth.init for every test, with @repo/testing/catalyst-auth
 `-- integration/          the app from app.ts, driven through Supertest
 vitest.config.mts         .mts because this package is CommonJS; sets the Zoho keys read at load
 tsconfig.json             src + test, no emit - editor and typecheck
@@ -32,7 +28,11 @@ tsconfig.build.json       src only - build
 ```
 
 `app.ts` builds the Express app without a listener, so the integration tests import it
-directly. Tests and how Catalyst is faked: `.claude/rules/testing.md`.
+directly. Tests and how Catalyst is faked: `.claude/rules/general/testing.md`.
+
+The Express plumbing - `initExecutionContext`, `initCatalystScopes`, `errorHandler`,
+`HttpError` and the response builders - lives in `@repo/http-server`, shared with every
+other app that serves HTTP. It is imported from there, never copied.
 
 `catalyst-logger` is imported first in `index.ts` purely for its side effect: it
 replaces the `console` methods so logs are framed for Catalyst's collector. It exports
@@ -61,7 +61,7 @@ else.
 
 ## Execution context
 
-`initExecutionContext` (`src/middleware.ts`) gives every `/api` request an execution id and
+`initExecutionContext` (`@repo/http-server/middleware`) gives every `/api` request an execution id and
 an empty `Catalyst`, and runs the rest of the chain inside `runWithContext`. It builds no
 Catalyst app.
 
@@ -117,14 +117,14 @@ await invoiceBucket.runIn(CatalystScope.User).getObject(invoiceKey);
 ```
 
 Handles are declared once in `packages/node-utils/src/catalyst/resources.ts`, never in a
-route. See `.claude/rules/vendor-boundaries.md`.
+route. See `.claude/rules/general/vendor-boundaries.md`.
 
 If a handle cannot do what the route needs, **add the method to the wrapper** rather than
 reaching for the SDK here. A single-use method is still the right shape.
 
 The wrappers throw `CatalystError` (`@repo/node-utils/errors/catalyst-error`), which carries
 an `ErrorCode`; catch it at the route only to map onto an `HttpError`, otherwise let it
-reach `errorHandler` as a 500. `.claude/rules/catalyst-sdk.md` is the full rule.
+reach `errorHandler` as a 500. `.claude/rules/general/catalyst-sdk.md` is the full rule.
 
 `currentContext()` throws outside a request. Carry anything else request-scoped via
 `manager.setExtras(key, value)` / `manager.getExtras<T>(key)`.
@@ -136,7 +136,7 @@ reach `errorHandler` as a 500. `.claude/rules/catalyst-sdk.md` is the full rule.
 ```ts
 import { Router } from "express";
 import { ApiPath } from "@repo/routing/api-path";
-import { toRecordResponse } from "@/utils/api";
+import { toRecordResponse } from "@repo/http-server/response";
 
 export const pingRouter: Router = Router();
 
@@ -151,14 +151,38 @@ prefix; `ping` is a single route, so it mounts bare and names `ApiPath.Ping` its
 annotation is not optional: the declaration emit cannot infer the type across the package
 boundary without it.
 
+## Validating input
+
+A route declares what it accepts as a zod schema and checks it with
+`RequestInput.parse(schema, req.body)` (`@repo/http-server/request-input`) - `req.query` and
+`req.params` the same way. It returns the typed value or throws a 400 naming the first
+problem, so no route writes a check per field. `routes/auth.ts` is the example:
+
+```ts
+const newUserSchema = z.object(
+  {
+    firstName: z.string({ error: "is required." }).trim().min(1, "is required."),
+    emailId: z.string({ error: "is required." }).trim().pipe(z.email("is not a valid email address.")),
+  },
+  { error: "Expected a JSON object." },
+);
+
+const user: NewUser = RequestInput.parse(newUserSchema, req.body);
+```
+
+The field's path is put in front of the message, so write each message as what is wrong
+with the field - the client reads `emailId is not a valid email address.` A message on the
+object itself covers a body that is not an object at all. The schema lives in the route that
+uses it; shape only - a business rule belongs in a service (`.claude/rules/general/api-layers.md`).
+
 ## Errors and responses
 
-Throw `HttpError` (`src/errors/http-error.ts`) rather than setting a status by hand -
+Throw `HttpError` (`@repo/http-server/http-error`) rather than setting a status by hand -
 `BadRequest` 400, `Unauthorized` 401, `NotFound` 404, `Conflict` 409. `errorHandler`
 maps those; anything else is logged and becomes a 500 with a generic message, so do not
 expect a raw thrown error to surface its message to the client.
 
-Every response goes through `src/utils/api.ts`:
+Every response goes through `@repo/http-server/response`:
 
 - `toRecordResponse(data)` - single record
 - `toPagedResponse(data, page, perPage, count, nextPageToken?)` - computes `totalPages`
@@ -171,7 +195,7 @@ The shapes live in `@repo/types/api` so the web app imports the same ones.
 
 Through `HttpClient` from `@repo/node-utils/http/http-client` - never `fetch` or another
 client directly. One instance per service at module scope; the full rule, the body and
-response shapes and the transport seam are in `.claude/rules/outbound-http.md`.
+response shapes and the transport seam are in `.claude/rules/general/outbound-http.md`.
 
 The body decides its own encoding - an object becomes JSON, a string is text, `FormData`
 is multipart. A third argument refines that but may not contradict it. A call resolves to

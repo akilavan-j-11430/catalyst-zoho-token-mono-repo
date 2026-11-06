@@ -18,12 +18,10 @@ type ApiEnv = {
   ZOHO_TOKEN_SCOPES: string;
   /** The accounts server for the DC, scheme and all - https://accounts.zoho.in */
   ZOHO_TOKEN_ACCOUNTS_URL: string;
-  /** The origin the Zoho callback is built on, scheme and all - http://localhost:3001.
-   *  Plus /api/v1/zoho-token/callback, it must equal the client's Authorized Redirect URI. */
+  /** The web app's origin, scheme and all - http://localhost:3001, or the Slate domain in
+   *  the cloud. Zoho sends the browser back to its /zoho-token/callback page, and that full
+   *  url must equal the client's Authorized Redirect URI. */
   ZOHO_TOKEN_CALLBACK_ORIGIN: string;
-  /** The web app's origin, scheme and all - http://localhost:3001. The browser is sent
-   *  back to its home page once the Zoho connection exists. */
-  WEB_APP_ORIGIN: string;
 };
 
 export const env = defineEnv<ApiEnv>();

@@ -84,7 +84,7 @@ form where Node has one:
 
 Keep a listener only when the code must not wait for the event - logging after a response,
 cleanup on a client disconnect, a handler that fires many times. `res.on("finish")` in
-`apps/api/src/middleware.ts` and `server.on("upgrade")` in `apps/proxy/src/index.ts` are
+`packages/http-server/src/middleware.ts` and `server.on("upgrade")` in `apps/proxy/src/index.ts` are
 that case.
 
 Naming and simplicity are covered in `readable-code.md`.

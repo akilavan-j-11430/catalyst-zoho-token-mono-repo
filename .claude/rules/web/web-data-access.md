@@ -1,5 +1,6 @@
 ---
-paths: apps/web/**
+paths:
+  - "apps/web/**"
 ---
 
 # Reaching the API from the browser
@@ -33,8 +34,10 @@ component is invisible there.
 | You are adding | It goes in |
 |---|---|
 | a call to a route that already exists | `src/services/<domain>.ts` - the file for that domain |
+| a call a signed-out visitor makes, such as sign-up | `publicApi` - every other call uses `api`, which carries the caller's bearer token |
+| a call to a backend other than `api` - another AppSail, an Advanced I/O function | that backend's client pair in `src/services/api/client.ts`, built like `api` / `publicApi` on its own base URL - never a client built at a call site |
 | the first call for a new domain | a new `src/services/<domain>.ts` |
-| a path segment | `ApiPath` in `packages/routing/src/api-path.ts`, nowhere else |
+| a path segment | the routing file named after the backend - `ApiPath` in `packages/routing/src/api-path.ts` for `api` - nowhere else |
 | something the client cannot express yet - an upload, a retry, a redirect policy | `src/services/api/client.ts` |
 | a header, a timeout, a retry, a move off `fetch` | `src/services/api/client.ts` |
 | query keys, once more than one query exists | `src/services/query-keys.ts` |
@@ -46,15 +49,16 @@ tempting shortcut:
 
 - **A capability the client does not have is added to the client**, never a `fetch` at
   the call site and never a second client. It is the same rule as
-  `.claude/rules/catalyst-sdk.md`: a capability used from a call site but invisible in the
+  `.claude/rules/general/catalyst-sdk.md`: a capability used from a call site but invisible in the
   layer is the thing to avoid. One that turns out to be single-use is still the right
   shape - the client is a seam, and a seam is right at one caller.
 - **A service function builds its path from `ApiPath` segments**, added together with `+`,
   and never from a string literal. A value in the path goes through `encodeURIComponent`
   right there - see below.
 - **A service function never touches react-query**, and a component never touches the
-  client. The service is a plain async function; `useQuery`/`useMutation` wrap it at the
-  call site. That is what keeps it callable from anywhere and testable with no provider.
+  client. The service is a class of plain async static methods, as `code-design.md` asks
+  of every module; `useQuery`/`useMutation` wrap it at the call site. That is what keeps
+  it callable from anywhere and testable with no provider.
 - **A component never imports from `src/services/api/`.** It imports a domain file. The
   one exception is `ApiError`, which the error layer needs to decide what a toast says.
 
@@ -67,10 +71,13 @@ on every path, the way the server's `HttpClient` takes them:
 
 ```ts
 // src/services/warranty.ts
-export async function fetchWarranty(id: string): Promise<Warranty> {
-  return recordOf<Warranty>(
-    await api.get(`${ApiPath.Warranties}/${encodeURIComponent(id)}`),
-  );
+/** Gateway: everything this app asks of the warranty routes. */
+export class WarrantyService {
+  static async fetchWarranty(id: string): Promise<Warranty> {
+    return ApiClient.recordOf<Warranty>(
+      await api.get(`${ApiPath.Warranties}/${encodeURIComponent(id)}`),
+    );
+  }
 }
 ```
 
@@ -83,8 +90,9 @@ the same response from the same type, so the two cannot drift.
 typed parameter, and the value goes through `encodeURIComponent`.** Not a
 `"/warranties/:id"` template substituted at the call site.
 
-The parameter is checked: the compiler knows `fetchWarranty` needs one string, so a missing
-or misspelled argument is a compile error rather than a URL reading `/warranties/undefined`.
+The parameter is checked: the compiler knows `WarrantyService.fetchWarranty` needs one
+string, so a missing or misspelled argument is a compile error rather than a URL reading
+`/warranties/undefined`.
 A `:id` template is a string until it reaches the wire, and nothing catches the typo.
 
 `encodeURIComponent` is not optional. A ROWID is digits and survives
@@ -146,13 +154,15 @@ is `text/plain`, `Blob`/`ArrayBuffer` are binary, and `FormData`/`URLSearchParam
 alone so the multipart boundary generated with their bytes survives. A `content-type`
 header refines that when the default is not specific enough.
 
-`baseUrl` stays **relative**, unlike the server's, which demands an absolute URL. The proxy
-keeps the browser and the API on one origin; an absolute base would send the call
-cross-origin, where it arrives with no session cookie and none of the Catalyst headers
-`zcAuth.init(req)` reads.
+`baseUrl` may be **relative**, unlike the server's, which demands an absolute URL. Locally
+the proxy keeps the browser and the API on one origin, so `/api/v1` is enough. In the
+cloud Slate and AppSail are separate origins, and the base is `NEXT_PUBLIC_API_URL` plus
+that prefix. Both cases are decided once, in `API_BASE_URL` in `client.ts`, so no service
+changes between them. Across origins no session cookie travels, which is why `api` sends a
+bearer token.
 
-**`recordOf(response)` is how a service reads our own API.** `apps/api` answers every route
-with `{ status, data }`, and `recordOf` is the only place that knows it, so a service
+**`ApiClient.recordOf(response)` is how a service reads our own API.** `apps/api` answers every
+route with `{ status, data }`, and `recordOf` is the only place that knows it, so a service
 returns a record and never the envelope around it. Reach for `body.json()` directly only
 when a route does not use the envelope.
 
@@ -170,11 +180,11 @@ handling that `useQuery` already has, and it bypasses the error layer below.
 ```ts
 const { data } = useQuery({
   queryKey: ["warranty", id],
-  queryFn: () => fetchWarranty(id),
+  queryFn: () => WarrantyService.fetchWarranty(id),
 });
 
 const { mutate, isPending } = useMutation({
-  mutationFn: registerUser,
+  mutationFn: (user: NewUser) => AuthService.registerUser(user),
   onSuccess: (registered) => toast.success(`Invited ${registered.emailId}.`),
 });
 ```

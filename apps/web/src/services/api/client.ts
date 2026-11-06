@@ -1,5 +1,6 @@
 import type { ErrorResponse, RecordResponse } from "@repo/types/api";
 import { ApiPath } from "@repo/routing/api-path";
+import { AuthClient } from "@/catalyst/auth-client";
 import {
   HttpMethod,
   type HeaderResolver,
@@ -11,7 +12,7 @@ import {
 /**
  * The shared `HttpResponse` plus the request that produced it, so a failure raised while
  * reading the body still names the call - the server's client keeps those in a closure,
- * and `recordOf` below is read outside one.
+ * and `ApiClient.recordOf` is read outside one.
  */
 export interface ApiResponse extends HttpResponse {
   readonly method: HttpMethod;
@@ -22,18 +23,15 @@ export type { QueryValue, RequestOptions };
 
 export interface ApiClientOptions {
   /**
-   * Prefixed onto every path. Relative on purpose, unlike the server's client, which
-   * demands an absolute URL: `apps/proxy` gives the browser and the API one origin, and
-   * an absolute base would send the call cross-origin, arriving without the session
-   * cookie and without the Catalyst headers `zcAuth.init(req)` reads.
+   * Prefixed onto every path. Unlike the server's client, which demands an absolute URL,
+   * this one may be relative - locally `apps/proxy` gives the browser and the API one
+   * origin. `API_BASE_URL` below decides which.
    */
   baseUrl: string;
   /** Anything every call carries. Resolved per call, so an expiring token can refresh. */
   headers?: HeaderResolver;
   timeoutMs?: number;
 }
-
-const DEFAULT_TIMEOUT_MS = 30_000;
 
 /** A failure where a response did arrive, so the wire details are all known. */
 interface ResponseFailure {
@@ -42,20 +40,6 @@ interface ResponseFailure {
   status: number;
   headers: Record<string, string>;
   body: string;
-}
-
-/**
- * The API's own message when it sent one. Unlike the server's `HttpRequestError`, this
- * error is shown to a person rather than logged, so the envelope's message wins over
- * `POST /x responded 409`.
- */
-function describe(body: string): string | undefined {
-  try {
-    const { message } = JSON.parse(body) as ErrorResponse;
-    return typeof message === "string" && message !== "" ? message : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /** Everything known about a failed call, flat and synchronous so it can be logged. */
@@ -89,9 +73,23 @@ export class ApiError extends Error {
   /** The API answered with a non-2xx. */
   static Upstream(failure: ResponseFailure): ApiError {
     const message =
-      describe(failure.body) ??
+      ApiError.describe(failure.body) ??
       `${failure.method} ${failure.url} responded ${failure.status}`;
     return new ApiError(message, failure);
+  }
+
+  /**
+   * The API's own message when it sent one. Unlike the server's `HttpRequestError`, this
+   * error is shown to a person rather than logged, so the envelope's message wins over
+   * `POST /x responded 409`.
+   */
+  private static describe(body: string): string | undefined {
+    try {
+      const { message } = JSON.parse(body) as ErrorResponse;
+      return typeof message === "string" && message !== "" ? message : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /** `body.json()` was read on a body that is not JSON. */
@@ -125,58 +123,13 @@ export class ApiError extends Error {
   }
 }
 
-/** Buffered once, so the three readers below are all available and re-readable. */
-function toApiResponse(
-  method: HttpMethod,
-  url: string,
-  status: number,
-  headers: Record<string, string>,
-  bytes: Uint8Array,
-): ApiResponse {
-  const decode = (): string => new TextDecoder().decode(bytes);
-  return {
-    method,
-    url,
-    status,
-    headers,
-    body: {
-      raw: async () => bytes,
-      text: async () => decode(),
-      json: async <T = unknown>(): Promise<T> => {
-        const text = decode();
-        if (text.length === 0) {
-          return undefined as T;
-        }
-        try {
-          return JSON.parse(text) as T;
-        } catch {
-          throw ApiError.Undecodable({ method, url, status, headers, body: text });
-        }
-      },
-    },
-  };
-}
-
-/** What goes on the wire, and the content type that goes with it. */
-function encodeBody(body: unknown): {
-  body?: BodyInit;
-  contentType?: string;
-} {
-  if (body === undefined) {
-    return {};
-  }
-  // FormData and URLSearchParams carry their own encoding - FormData's multipart boundary
-  // is generated with its bytes, so declaring a type here would corrupt it.
-  if (body instanceof FormData || body instanceof URLSearchParams) {
-    return { body };
-  }
-  if (typeof body === "string") {
-    return { body, contentType: "text/plain" };
-  }
-  if (body instanceof Blob || body instanceof ArrayBuffer) {
-    return { body, contentType: "application/octet-stream" };
-  }
-  return { body: JSON.stringify(body), contentType: "application/json" };
+/** A response that arrived, before its body is read. */
+interface ReceivedResponse {
+  method: HttpMethod;
+  url: string;
+  status: number;
+  headers: Record<string, string>;
+  bytes: Uint8Array;
 }
 
 /**
@@ -187,6 +140,8 @@ function encodeBody(body: unknown): {
  * reject with `ApiError`.
  */
 export class ApiClient {
+  private static readonly DEFAULT_TIMEOUT_MS = 30_000;
+
   private readonly baseUrl: string;
   private readonly resolveHeaders: HeaderResolver;
   private readonly timeoutMs: number;
@@ -194,7 +149,27 @@ export class ApiClient {
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.resolveHeaders = options.headers ?? (() => ({}));
-    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.timeoutMs = options.timeoutMs ?? ApiClient.DEFAULT_TIMEOUT_MS;
+  }
+
+  /**
+   * `apps/api` answers every route with `{ status, data }`. This is the only place that
+   * knows that, so a service reads a record and never the envelope around it.
+   */
+  static async recordOf<T>(response: ApiResponse): Promise<T> {
+    const payload = await response.body.json<RecordResponse<T> | undefined>();
+    if (payload === undefined) {
+      // A 2xx with no body where a record was promised is a bug on the server, not
+      // something the person reading the toast can act on.
+      throw ApiError.Undecodable({
+        method: response.method,
+        url: response.url,
+        status: response.status,
+        headers: response.headers,
+        body: "",
+      });
+    }
+    return payload.data;
   }
 
   get(path: string, options?: RequestOptions): Promise<ApiResponse> {
@@ -217,12 +192,6 @@ export class ApiClient {
     return this.send(HttpMethod.Delete, path, undefined, options);
   }
 
-  /** The address a call to `path` would go to, for a route the browser navigates to
-   *  rather than fetches - one that answers with a redirect to another site. */
-  url(path: string, query?: Record<string, QueryValue>): string {
-    return this.resolveUrl(path, query);
-  }
-
   private async send(
     method: HttpMethod,
     path: string,
@@ -230,7 +199,7 @@ export class ApiClient {
     options?: RequestOptions,
   ): Promise<ApiResponse> {
     const url = this.resolveUrl(path, options?.query);
-    const encoded = encodeBody(body);
+    const encoded = ApiClient.encodeBody(body);
     const headers: Record<string, string> = {
       ...(encoded.contentType ? { "content-type": encoded.contentType } : {}),
       ...(await this.resolveHeaders()),
@@ -260,7 +229,13 @@ export class ApiClient {
         body: new TextDecoder().decode(bytes),
       });
     }
-    return toApiResponse(method, url, response.status, received, bytes);
+    return ApiClient.toApiResponse({
+      method,
+      url,
+      status: response.status,
+      headers: received,
+      bytes,
+    });
   }
 
   private resolveUrl(path: string, query?: Record<string, QueryValue>): string {
@@ -273,30 +248,73 @@ export class ApiClient {
     );
     return `${url}?${search.toString()}`;
   }
-}
 
-/**
- * `apps/api` answers every route with `{ status, data }`. This is the only place that
- * knows that, so a service reads a record and never the envelope around it.
- */
-export async function recordOf<T>(response: ApiResponse): Promise<T> {
-  const payload = await response.body.json<RecordResponse<T> | undefined>();
-  if (payload === undefined) {
-    // A 2xx with no body where a record was promised is a bug on the server, not
-    // something the person reading the toast can act on.
-    throw ApiError.Undecodable({
-      method: response.method,
-      url: response.url,
-      status: response.status,
-      headers: response.headers,
-      body: "",
-    });
+  /** What goes on the wire, and the content type that goes with it. */
+  private static encodeBody(body: unknown): {
+    body?: BodyInit;
+    contentType?: string;
+  } {
+    if (body === undefined) {
+      return {};
+    }
+    // FormData and URLSearchParams carry their own encoding - FormData's multipart boundary
+    // is generated with its bytes, so declaring a type here would corrupt it.
+    if (body instanceof FormData || body instanceof URLSearchParams) {
+      return { body };
+    }
+    if (typeof body === "string") {
+      return { body, contentType: "text/plain" };
+    }
+    if (body instanceof Blob || body instanceof ArrayBuffer) {
+      return { body, contentType: "application/octet-stream" };
+    }
+    return { body: JSON.stringify(body), contentType: "application/json" };
   }
-  return payload.data;
+
+  /** Buffered once, so the three readers below are all available and re-readable. */
+  private static toApiResponse(received: ReceivedResponse): ApiResponse {
+    const { method, url, status, headers, bytes } = received;
+    const decode = (): string => new TextDecoder().decode(bytes);
+    return {
+      method,
+      url,
+      status,
+      headers,
+      body: {
+        raw: async () => bytes,
+        text: async () => decode(),
+        json: async <T = unknown>(): Promise<T> => {
+          const text = decode();
+          if (text.length === 0) {
+            return undefined as T;
+          }
+          try {
+            return JSON.parse(text) as T;
+          } catch {
+            throw ApiError.Undecodable({ method, url, status, headers, body: text });
+          }
+        },
+      },
+    };
+  }
 }
 
 /**
- * One instance for `apps/api`. The prefix lives here rather than on every path, and stays
- * relative so the proxy keeps the browser and the API on one origin.
+ * The prefix lives here rather than on every path. In the cloud Slate and AppSail are
+ * separate origins, so a deployed build is given the AppSail origin in
+ * `NEXT_PUBLIC_API_URL`, set in the Slate Console and inlined by `next build`. Locally
+ * it is unset and the path stays relative, through the proxy. Written out in full,
+ * because Next inlines only a literal `process.env.NEXT_PUBLIC_*` reference.
  */
-export const api = new ApiClient({ baseUrl: ApiPath.Api + ApiPath.V1 });
+const API_BASE_URL =
+  (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "") + ApiPath.Api + ApiPath.V1;
+
+/** For routes that need a signed-in caller - the default. Every call carries a token. */
+export const api = new ApiClient({
+  baseUrl: API_BASE_URL,
+  headers: () => AuthClient.authHeaders(),
+});
+
+/** For routes a signed-out visitor calls, such as sign-up: there is no session to issue a
+ *  token from. */
+export const publicApi = new ApiClient({ baseUrl: API_BASE_URL });

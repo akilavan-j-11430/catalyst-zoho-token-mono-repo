@@ -191,7 +191,7 @@ User scope covers only the methods the browser SDK exposes
 (https://docs.catalyst.zoho.com/en/sdk/javascript/v1/webpack-bundler/#browser-supported-javascript-methods);
 everything else needs Admin. So the context carries a `Catalyst` (`catalyst.ts`) holding one
 app per `CatalystScope`. It starts empty: a route that calls Catalyst mounts
-`initCatalystScopes([...])` (`apps/api/src/middleware.ts`), which builds only the scopes it
+`initCatalystScopes([...])` (`@repo/http-server/middleware`), which builds only the scopes it
 names from the request's headers, so a route that never touches Catalyst never pays for an
 init. A named scope that cannot be built fails the request - User, when the request carries
 no signed-in user, is a 401. A scope the route did not name is never built, and

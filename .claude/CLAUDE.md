@@ -19,12 +19,13 @@ asserting it.
 
 The repo carries exactly one feature: a Zoho OAuth connection, obtained once per
 signed-in Catalyst user and kept until the user disconnects or Zoho rejects it.
-`/api/v1/zoho-token/{connect,callback,status,disconnect}` in `apps/api`, the refresh token
+`/api/v1/zoho-token/{connect,callback,status,disconnect}` in `apps/api` and the
+`/zoho-token/callback` page in `apps/web` that Zoho returns to, the refresh token
 in the `ZohoConnection` table, the access token minted on demand and held in an
 in-memory LRU over Catalyst Cache. The services are
 `packages/node-utils/src/services/zoho/`, the table's only reader is
 `packages/node-utils/src/repositories/zoho-connection-repository.ts`, and
-`.claude/rules/zoho-token.md` is how to use them.
+`.claude/rules/general/zoho-token.md` is how to use them.
 
 Everything else is still bare plumbing, so most other tasks mean adding the *first*
 thing of their kind - the first bucket, the first job, the first shared model. Extend
@@ -39,8 +40,12 @@ Where new work goes:
   never two definitions that can drift.
 - Route path segments -> `packages/routing`: `ApiPath` in `api-path.ts`, combined with
   `+` - `ApiPath.Api + ApiPath.V1`. `apps/api` mounts them and `apps/web` calls them, so
-  a path is never a string literal in either app. Client paths belong here too, in their
-  own file.
+  a path is never a string literal in either app. Each AppSail's segments live in a file
+  named after the app - `api-path.ts` for `api`, `billing-path.ts` exporting `BillingPath`
+  for an `apps/billing`. Client paths belong here too, in their own file.
+- Express plumbing every HTTP app shares (middleware, `HttpError`, response builders) ->
+  `packages/http-server`, the one package allowed `express`. Every app that serves HTTP
+  imports it from there and never copies it.
 - Server-side helpers -> `packages/node-utils`. It imports `node:async_hooks`, so
   it is `apps/api` only - never reach it from `apps/web`.
 - Never `apps/proxy`. It is local-only plumbing and ships nothing; a feature added
@@ -85,14 +90,26 @@ catalyst serve      <- entry point, port assigned by the CLI (3000, 3001, 3002, 
 | `packages/routing` | `@repo/routing` | - |
 | `packages/case-conversion` | `@repo/case-conversion` | - |
 | `packages/node-utils` | `@repo/node-utils` | - |
+| `packages/http-server` | `@repo/http-server` | - |
 | `packages/typescript-config` | `@repo/typescript-config` | - |
 | `packages/eslint-config` | `@repo/eslint-config` | - |
 | `packages/testing` | `@repo/testing` | - |
 
-**The proxy is never deployed.** It exists only to give local development the single
-origin and auth gate that Catalyst provides natively in the cloud. It appears in
-`catalyst.json` so `catalyst serve` can run it, and `pnpm deploy` deliberately ships
-only `appsail:api` and `slate:web`. Do not add it to the deploy list.
+**The proxy is never deployed.** It gives local development a single origin and an auth
+gate. It appears in `catalyst.json` so `catalyst serve` can run it, and `pnpm deploy`
+deliberately ships only `appsail:api` and `slate:web`. Do not add it to the deploy list.
+
+**The cloud is two origins, not one.** Slate serves `web` from `*.onslate.com` and
+AppSail serves `api` from `*.catalystappsail.com`, and the session cookie does not cross
+between them:
+
+- The browser calls AppSail at `NEXT_PUBLIC_API_URL`, inlined at build time. Locally it is
+  unset and calls stay relative, through the proxy - see `.claude/rules/general/environment.md`.
+- `api` (`apps/web/src/services/api/client.ts`) sends `Authorization: Bearer <token>` from
+  `AuthClient.authHeaders()`, which uses the web SDK's `generateAuthToken()`. `publicApi`
+  sends none, for signed-out routes - see `.claude/rules/web/web-data-access.md`.
+- CORS comes from Catalyst's Authorized Domains for the Slate domain, never from
+  middleware in `apps/api`, which would duplicate the header.
 
 ## Three things that will waste your time
 
@@ -161,28 +178,53 @@ runtime does not have.
 
 ## Conventions
 
-Topic rules live one-per-file in `.claude/rules/` and load automatically: `catalyst-sdk.md`
-covers every Catalyst call and how few of them a solution makes, `outbound-http.md` every
-call to a service outside this repo, `web-data-access.md` every call the browser makes to
-our own API and every form that collects one, `environment.md` every environment
-variable, `zoho-token.md` every Zoho access token, `typography.md` every font,
-`code-design.md` every class and the pattern it follows, `readable-code.md` casing, naming
-and when complexity is worth it, `vendor-boundaries.md` where each vendor is reached and how
-little a migration touches, `testing.md` where tests live, how Catalyst is faked and what to
-run before calling a change done. Add a file there rather than growing this one, and give it
-`paths:` frontmatter if it only applies to part of the tree.
+Topic rules live one-per-file in `.claude/rules/` and load automatically, in two folders.
+
+`.claude/rules/general/` holds the rules for the whole repo:
+- `catalyst-sdk.md` - every Catalyst call, and how few of them a solution makes.
+- `outbound-http.md` - every call to a service outside this repo.
+- `environment.md` - every environment variable.
+- `zoho-token.md` - every Zoho access token.
+- `code-design.md` - every class, and the pattern it follows.
+- `readable-code.md` - casing, naming, and when complexity is worth it.
+- `vendor-boundaries.md` - where each vendor is reached, and how little a migration touches.
+- `testing.md` - where tests live, how Catalyst is faked, and what to run before calling a
+  change done.
+- `api-layers.md` - what a route, a service and a repository each do, and when a service
+  is worth adding.
+
+`.claude/rules/web/` holds the rules that apply only to `apps/web`, each scoped with
+`paths:` frontmatter:
+- `web-data-access.md` - every call the browser makes to our own API, and every form that
+  collects one.
+- `typography.md` - every font.
+- `component-design.md` - how a component is split, styled and laid out, and how it shows a
+  wait.
+
+`.claude/rules/catalyst/` holds one rule per kind of Catalyst function - what goes inside
+it, how it is run locally, and its limits. Creating one is a skill (below):
+- `function-entry-point.md` - the export, init, scope and logger every function gets right.
+- `job-function.md` - one function for every job, dispatching on `jobName`.
+- `advanced-io-function.md` - an Express app exported, never listening.
+- `basic-io-function.md` - a single handler, arguments in, one string out.
+- `signal-function.md` - one function for every Signals event, dispatching on its name.
+
+Add a file to the folder it belongs to rather than growing this one. Give a rule `paths:`
+frontmatter when it applies to only part of the tree.
 
 - `@/*` resolves to `./src/*` in every app and every built package. Use it instead of `../../`.
 - Shared packages expose subpaths, not a barrel: `@repo/types/api`, `@repo/routing/api-path`,
   `@repo/case-conversion/camel-case`,
   `@repo/node-utils/framework/logger`, `@repo/node-utils/framework/async-context`,
   `@repo/node-utils/catalyst/resources`, `@repo/node-utils/utils/env`,
+  `@repo/http-server/middleware`, `@repo/http-server/http-error`, `@repo/http-server/response`,
+  `@repo/http-server/request-input`,
   `@repo/testing/vitest-projects`.
 - File names are kebab-case: `http-error.ts`, `async-context.ts`.
 - Identifiers and JSON keys are camelCase: `emailId`, `nextPageToken`. The exception is
   a wire shape a vendor defines - Catalyst sends `email_id`, `job_name`, `ROWID` - which
   is named as the vendor names it and converted at the wrapper, never leaked past it.
-  See `.claude/rules/readable-code.md`.
+  See `.claude/rules/general/readable-code.md`.
 - Workspace deps are `"workspace:*"`.
 - **A file earns its existence from a second caller or from a boundary, not from
   tidiness.** Something used in exactly one place lives where it is used; split it out
@@ -200,7 +242,7 @@ run before calling a change done. Add a file there rather than growing this one,
   response body before it is parsed, a caught `error`, a value the SDK itself leaves
   untyped. Narrow it at the first point you can, and type the result. What this rules out
   is `any`/`unknown` standing in for a type nobody looked up: derive it from the signature
-  that produces it, or declare it. `.claude/rules/catalyst-sdk.md` shows how when the
+  that produces it, or declare it. `.claude/rules/general/catalyst-sdk.md` shows how when the
   vendor types are awkward.
 
 In `apps/web`:
@@ -211,9 +253,9 @@ In `apps/web`:
 - Server state is react-query, form state is react-hook-form. Both are installed; neither
   gets re-implemented with `useState`.
 - Failures are reported by the query client as a toast, so a call site handles success only.
-- The full rule is `.claude/rules/web-data-access.md`.
+- The full rule is `.claude/rules/web/web-data-access.md`.
 - Fonts come from the tokens in `globals.css` and nowhere else. Never set a family on a
-  component - see `.claude/rules/typography.md`.
+  component - see `.claude/rules/web/typography.md`.
 
 In `apps/api`:
 
@@ -221,22 +263,25 @@ In `apps/api`:
   `@repo/node-utils/catalyst/resources`, where every table, bucket, cache segment
   and job is declared once with the wrapper's `create` factory. Never construct a wrapper
   in a handler, never initialize Catalyst yourself, and never read the app off the context
-  - see `.claude/rules/catalyst-sdk.md`.
+  - see `.claude/rules/general/catalyst-sdk.md`.
 - Throw `HttpError.BadRequest | Unauthorized | NotFound | Conflict`
-  (`src/errors/http-error.ts`) instead of setting a status by hand. `errorHandler`
+  (`@repo/http-server/http-error`) instead of setting a status by hand. `errorHandler`
   maps them; anything else becomes a 500.
+- Check a request's body, query or params with a zod schema through `RequestInput.parse`
+  (`@repo/http-server/request-input`), never a hand-written check per field. It answers 400
+  naming the field, so each schema message says what is wrong: `"is required."`.
 - Build every response with `toRecordResponse`, `toPagedResponse`, or
-  `toErrorResponse` (`src/utils/api.ts`) so payloads share one envelope.
+  `toErrorResponse` (`@repo/http-server/response`) so payloads share one envelope.
 - Log through `logger` from `@repo/node-utils/framework/logger`, not `console`.
 - Call external services through `HttpClient` (`@repo/node-utils/http/http-client`), never
   `fetch` or another client directly. It stamps the request's execution id on every
-  outbound call as `app-execution-id`. See `.claude/rules/outbound-http.md`.
+  outbound call as `app-execution-id`. See `.claude/rules/general/outbound-http.md`.
 - Read environment variables through `env` (`@/env`), never `process.env`. This app owns
   its keys - add one to the template in `src/env.ts` first, so a typo is a compile error.
   Values live in `.env`, never in `app-config.json` or any other Catalyst file, and
   nothing Catalyst-related belongs in the environment at all. The platform-injected reads
   at module scope in `index.ts` and `framework/catalyst-logger.ts` are the exception.
-  See `.claude/rules/environment.md`.
+  See `.claude/rules/general/environment.md`.
 
 ## Adding to the repo
 
@@ -244,18 +289,35 @@ In `apps/api`:
 `: Router` annotation, use the response builders, add its segments to `ApiPath`
 (`packages/routing`), then mount it in `src/routes/api-router.ts` under its own segment.
 That file is the only place a router mounts, so `src/app.ts` never changes. A route that
-calls Catalyst mounts `initCatalystScopes([...])` (`src/middleware.ts`) ahead of its handler,
+calls Catalyst mounts `initCatalystScopes([...])` (`@repo/http-server/middleware`) ahead of its handler,
 naming the scopes it uses - `router.use` it instead when every route on the router needs them.
+The route stays thin - validate, call one operation, respond - and a business rule goes in
+a service only once there is one to hold. See `.claude/rules/general/api-layers.md`.
 
 **A table** - declare its handle in `packages/node-utils/src/catalyst/resources.ts`, its
 domain type in `packages/types`, and a repository in
 `packages/node-utils/src/repositories/<name>-repository.ts` that is the only importer of the
 handle and maps rows to the domain type. Routes call the repository. See
-`.claude/rules/vendor-boundaries.md`.
+`.claude/rules/general/vendor-boundaries.md`.
 
-**An AppSail app** - copy `apps/api` as the shape. Four things must agree:
-`scripts/bundle.mjs` (output `appsails/<name>/`), `app-config.json`, the `catalyst.json`
-entry, and the `--only appsail:<name>` flag in the root `deploy` script.
+**An AppSail, a function or a Slate app** - a new deployable, so agree it with the user
+first, then pick the kind and run its skill in `.claude/skills/`:
+
+| You need | Add | Skill |
+|---|---|---|
+| an HTTP route that belongs with the rest of the API | a router in `apps/api`, as above | - |
+| an HTTP API that deploys and scales apart from `api`, each request under 30 s | an Advanced I/O function | `add-aio-fn` |
+| one small operation, arguments in, one string out | a Basic I/O function | `add-bio-fn` |
+| work a `Job` handle submits, now or at a set time | a Job function | `add-job-fn` |
+| work a Catalyst Signals rule delivers | a Signal (Event) function | `add-signal-fn` |
+| a process that runs past 15 minutes, holds WebSockets, or keeps state between requests | an AppSail, browser-facing or not | `add-appsail` |
+| a second frontend on its own domain | a Slate app | `add-slate` |
+
+Cron functions are deprecated and not used - schedule a job with `submitOneTimeCron` on
+its `Job` handle. A Job or Signal function stops at 15 minutes and a Basic I/O or Advanced
+I/O function at 30 seconds; an AppSail has no timeout but is billed for uptime. The steps
+all kinds share are in `.claude/skills/deployable-steps.md` and
+`.claude/skills/function-steps.md`, which each skill reads first.
 
 **A shared package** - `packages/<name>` with `"type": "module"`, the same subpath
 `exports` block as the others, a `tsconfig.json` extending
@@ -267,9 +329,9 @@ tests. A package `apps/web` consumes is
 framework-free and sets `"types": []` - copy `packages/routing` - or `@types/node` from the
 repo root lets Node APIs compile in its `src/`. A server-only package declares `@types/node`
 and `"types": ["node"]` instead - copy `packages/node-utils`. `@repo/testing` is the one
-exception to all of this - see `.claude/rules/testing.md`.
+exception to all of this - see `.claude/rules/general/testing.md`.
 
-**Tests** - see `.claude/rules/testing.md`. Run `pnpm verify` before calling any change done.
+**Tests** - see `.claude/rules/general/testing.md`. Run `pnpm verify` before calling any change done.
 
 ## Catalyst notes
 
@@ -277,7 +339,10 @@ exception to all of this - see `.claude/rules/testing.md`.
   credentials ride on request headers, so nothing Catalyst-related belongs in the
   environment.
 - `catalyst_auth: true` in `apps/proxy/app-config.json` is what enforces login locally.
-  The api AppSail does not set it - it is reachable only through the proxy.
+  The api AppSail does not set it. In the cloud it is reached directly, cross-origin, so
+  a route that needs a signed-in caller says so with `initCatalystScopes([CatalystScope.User])`,
+  which answers 401 without a valid token. Admin scope proves nothing about the caller:
+  the gateway grants it to anonymous requests too, so an Admin-only route is public.
 - `catalyst.json` is committed and declares the deployables. `.catalystrc` is gitignored
   and per-developer, written by `catalyst init`.
 - `apps/api` bundles with esbuild and strips `@repo/*` from the deployed manifest, so

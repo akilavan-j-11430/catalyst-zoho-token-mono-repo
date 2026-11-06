@@ -29,8 +29,11 @@ await mkdir(outDir, { recursive: true });
 
 await cp(root, outDir, {
   recursive: true,
+  // A local `.env` must not ship: `next build` on Slate would inline its values. Deployed
+  // values are set in the Slate Console.
   filter: (source) =>
     !skippedEntries.has(relative(root, source)) &&
+    !relative(root, source).startsWith(".env") &&
     !source.endsWith(".tsbuildinfo"),
 });
 

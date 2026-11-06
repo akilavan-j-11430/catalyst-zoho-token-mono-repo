@@ -189,6 +189,8 @@ Topic rules live one-per-file in `.claude/rules/` and load automatically, in two
 - `vendor-boundaries.md` - where each vendor is reached, and how little a migration touches.
 - `testing.md` - where tests live, how Catalyst is faked, and what to run before calling a
   change done.
+- `api-layers.md` - what a route, a service and a repository each do, and when a service
+  is worth adding.
 
 `.claude/rules/web/` holds the rules that apply only to `apps/web`, each scoped with
 `paths:` frontmatter:
@@ -288,6 +290,8 @@ In `apps/api`:
 That file is the only place a router mounts, so `src/app.ts` never changes. A route that
 calls Catalyst mounts `initCatalystScopes([...])` (`@repo/http-server/middleware`) ahead of its handler,
 naming the scopes it uses - `router.use` it instead when every route on the router needs them.
+The route stays thin - validate, call one operation, respond - and a business rule goes in
+a service only once there is one to hold. See `.claude/rules/general/api-layers.md`.
 
 **A table** - declare its handle in `packages/node-utils/src/catalyst/resources.ts`, its
 domain type in `packages/types`, and a repository in

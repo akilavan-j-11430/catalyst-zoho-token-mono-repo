@@ -1,14 +1,8 @@
-import config, {
-  allowCatalystSdk,
-  allowTestsIn,
-  allowVendorNames,
-} from "@repo/eslint-config";
+import config, { allowTestsIn, allowVendorNames } from "@repo/eslint-config";
 
-// Only the per-request initialization touches the SDK directly. Environment variable names
-// and the AppSail log record keep their own casing.
+// Environment variable names and the AppSail log record keep their own casing.
 export default [
   ...config,
-  allowCatalystSdk(["src/middleware.ts"]),
   allowVendorNames(["src/env.ts", "src/framework/catalyst-logger.ts"]),
-  allowTestsIn(["unit", "integration"]),
+  allowTestsIn(["integration"]),
 ];

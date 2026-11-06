@@ -43,9 +43,8 @@ Where new work goes:
   named after the app - `api-path.ts` for `api`, `billing-path.ts` exporting `BillingPath`
   for an `apps/billing`. Client paths belong here too, in their own file.
 - Express plumbing every HTTP app shares (middleware, `HttpError`, response builders) ->
-  `packages/http-server`, the one package allowed `express`. Today it lives in `apps/api`;
-  the first other app that serves HTTP moves it there - see
-  `.claude/skills/deployable-steps.md`.
+  `packages/http-server`, the one package allowed `express`. Every app that serves HTTP
+  imports it from there and never copies it.
 - Server-side helpers -> `packages/node-utils`. It imports `node:async_hooks`, so
   it is `apps/api` only - never reach it from `apps/web`.
 - Never `apps/proxy`. It is local-only plumbing and ships nothing; a feature added
@@ -90,6 +89,7 @@ catalyst serve      <- entry point, port assigned by the CLI (3000, 3001, 3002, 
 | `packages/routing` | `@repo/routing` | - |
 | `packages/case-conversion` | `@repo/case-conversion` | - |
 | `packages/node-utils` | `@repo/node-utils` | - |
+| `packages/http-server` | `@repo/http-server` | - |
 | `packages/typescript-config` | `@repo/typescript-config` | - |
 | `packages/eslint-config` | `@repo/eslint-config` | - |
 | `packages/testing` | `@repo/testing` | - |
@@ -214,6 +214,7 @@ frontmatter when it applies to only part of the tree.
   `@repo/case-conversion/camel-case`,
   `@repo/node-utils/framework/logger`, `@repo/node-utils/framework/async-context`,
   `@repo/node-utils/catalyst/resources`, `@repo/node-utils/utils/env`,
+  `@repo/http-server/middleware`, `@repo/http-server/http-error`, `@repo/http-server/response`,
   `@repo/testing/vitest-projects`.
 - File names are kebab-case: `http-error.ts`, `async-context.ts`.
 - Identifiers and JSON keys are camelCase: `emailId`, `nextPageToken`. The exception is
@@ -260,10 +261,10 @@ In `apps/api`:
   in a handler, never initialize Catalyst yourself, and never read the app off the context
   - see `.claude/rules/general/catalyst-sdk.md`.
 - Throw `HttpError.BadRequest | Unauthorized | NotFound | Conflict`
-  (`src/errors/http-error.ts`) instead of setting a status by hand. `errorHandler`
+  (`@repo/http-server/http-error`) instead of setting a status by hand. `errorHandler`
   maps them; anything else becomes a 500.
 - Build every response with `toRecordResponse`, `toPagedResponse`, or
-  `toErrorResponse` (`src/utils/api.ts`) so payloads share one envelope.
+  `toErrorResponse` (`@repo/http-server/response`) so payloads share one envelope.
 - Log through `logger` from `@repo/node-utils/framework/logger`, not `console`.
 - Call external services through `HttpClient` (`@repo/node-utils/http/http-client`), never
   `fetch` or another client directly. It stamps the request's execution id on every
@@ -281,7 +282,7 @@ In `apps/api`:
 `: Router` annotation, use the response builders, add its segments to `ApiPath`
 (`packages/routing`), then mount it in `src/routes/api-router.ts` under its own segment.
 That file is the only place a router mounts, so `src/app.ts` never changes. A route that
-calls Catalyst mounts `initCatalystScopes([...])` (`src/middleware.ts`) ahead of its handler,
+calls Catalyst mounts `initCatalystScopes([...])` (`@repo/http-server/middleware`) ahead of its handler,
 naming the scopes it uses - `router.use` it instead when every route on the router needs them.
 
 **A table** - declare its handle in `packages/node-utils/src/catalyst/resources.ts`, its

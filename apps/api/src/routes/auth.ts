@@ -4,9 +4,9 @@ import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
 import { UserManagement } from "@repo/node-utils/catalyst/user-management";
 import type { NewUser } from "@repo/types/user";
 import { env } from "@/env";
-import { HttpError } from "@/errors/http-error";
-import { initCatalystScopes } from "@/middleware";
-import { toRecordResponse } from "@/utils/api";
+import { HttpError } from "@repo/http-server/http-error";
+import { initCatalystScopes } from "@repo/http-server/middleware";
+import { toRecordResponse } from "@repo/http-server/response";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

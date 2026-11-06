@@ -8,9 +8,9 @@ import {
 import type { ZohoConnectionStatus } from "@repo/types/zoho-token";
 import { logger } from "@repo/node-utils/framework/logger";
 import { env } from "@/env";
-import { HttpError } from "@/errors/http-error";
-import { toRecordResponse } from "@/utils/api";
-import { initCatalystScopes, validateUserAuthentication } from "@/middleware";
+import { HttpError } from "@repo/http-server/http-error";
+import { toRecordResponse } from "@repo/http-server/response";
+import { initCatalystScopes, validateUserAuthentication } from "@repo/http-server/middleware";
 import { userZohoConnection } from "@/zoho-connections";
 
 /** Failures the user fixes by starting consent again. Every other `ZohoAuthError` -

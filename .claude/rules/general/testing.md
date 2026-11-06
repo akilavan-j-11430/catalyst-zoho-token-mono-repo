@@ -63,6 +63,8 @@ devDependency only and is never imported from any `src/` - ESLint enforces that.
 
 - `@repo/testing/vitest-projects` - `VitestProjects.forWorkspace(import.meta.dirname)`, the settings every
   `vitest.config.ts` starts from: the two projects, the `@/` alias, and the reset below.
+- `@repo/testing/catalyst-auth` - `catalystAuth`, the stand-in for `zcAuth`, used by every
+  workspace whose code calls `zcAuth.init` - see "Faking Catalyst" below.
 
 It is the one package that breaks the shared-package checklist on purpose: it exports its
 TypeScript sources (`"./*": "./src/*.ts"`) and has no `build` and no `dist/`. Vitest
@@ -70,8 +72,8 @@ transforms TypeScript itself and nothing else imports the package, so a build wo
 files nobody reads.
 
 A fake moves into it when its second workspace needs it. Until then it lives in that
-workspace's `test/` - `catalystAuth` is in `apps/api/test/catalyst-auth.ts`, and moves here
-when a second AppSail has tests.
+workspace's `test/`. `catalystAuth` moved here when `@repo/http-server` took the middleware
+that calls `zcAuth.init`, since `apps/api` and the package both need it.
 
 ## Reset is automatic
 
@@ -99,7 +101,8 @@ No test reaches Catalyst. What gets faked depends on what is under test:
 | Under test | Fake | Example |
 |---|---|---|
 | A wrapper in `node-utils/src/catalyst/` | the `@zcatalyst/*` package it calls | `zcql.test.ts` mocks `@zcatalyst/datastore` |
-| A route or middleware in `apps/api` | our wrapper (`@repo/node-utils/catalyst/...`), and `zcAuth.init` | `app.test.ts` mocks `UserManagement` |
+| A route in `apps/api` | our wrapper (`@repo/node-utils/catalyst/...`), and `zcAuth.init` | `app.test.ts` mocks `UserManagement` |
+| Middleware in `@repo/http-server` | `zcAuth.init` | `middleware.test.ts` |
 | A repository in `node-utils/src/repositories/` | the `@zcatalyst/*` package, so the real wrappers run and each call's app shows its scope | `zoho-connection-repository.test.ts` mocks `@zcatalyst/datastore` |
 | A service in `node-utils/src/services/` | the repository, resource handles and other services it calls | `connection.test.ts` mocks `ZohoConnectionRepository`, `zohoConnectionCache`, `ZohoAccounts` and `UserManagement` |
 | A route that uses a Zoho connection | the app's connection (`@/zoho-connections`) | `zoho-token.test.ts` mocks `userZohoConnection` |
@@ -112,10 +115,11 @@ them in `test.env`; a key a route reads per request is stubbed by the test that 
 test. `connection.test.ts` gives every test a reference id of its own instead of resetting
 them.
 
-`zcAuth.init` is faked for every test in `apps/api` by `test/setup.ts`, because no test
+`zcAuth.init` is faked for every test in `apps/api` and `@repo/http-server`, each by its own
+`test/setup.ts` (named in `setupFiles` in its `vitest.config`), because no test
 request carries the headers `catalyst serve` injects. The setup spreads the real
 `@zcatalyst/auth` module and swaps only `zcAuth`, so its other exports stay real. Control the
-fake through `catalystAuth` from `test/catalyst-auth.ts`. A test that guards a route should
+fake through `catalystAuth` from `@repo/testing/catalyst-auth`. A test that guards a route should
 also assert the scope it asked for:
 
 ```ts

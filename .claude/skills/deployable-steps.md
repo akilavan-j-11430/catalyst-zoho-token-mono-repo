@@ -62,28 +62,18 @@ needs to be told where it is:
 
 ## The shared Express plumbing: `@repo/http-server`
 
-Today `apps/api` holds the Express plumbing:
-- `src/middleware.ts` - `initExecutionContext`, `initCatalystScopes`,
-  `recordRequestTiming` and `errorHandler`
-- `src/errors/http-error.ts`
-- `src/utils/api.ts` - the response builders
+`packages/http-server` holds the Express plumbing every app that serves HTTP shares - a
+second AppSail, an Advanced I/O function, the dev server of a job or Signal function:
 
-Every other app that serves HTTP needs the same plumbing: a second AppSail, an Advanced
-I/O function, or the dev server of a job or Signal function. **The first of them moves it
-into `packages/http-server` (`@repo/http-server`)**, in a move-only commit, before
-anything imports it. Nothing copies it.
+- `@repo/http-server/middleware` - `initExecutionContext`, `initCatalystScopes`,
+  `recordRequestTiming`, `errorHandler`
+- `@repo/http-server/http-error` - `HttpError`
+- `@repo/http-server/response` - the response builders
 
-- It is server-only. Copy the shape of `packages/node-utils`: `@types/node` and
-  `"types": ["node"]`.
-- It is the one package allowed to import `express`. Every other package stays
-  framework-free (`packages/CLAUDE.md`).
-- Its subpaths follow its files: `@repo/http-server/middleware`,
-  `@repo/http-server/http-error` and `@repo/http-server/response`.
-- `initCatalystScopes` calls `zcAuth.init`, so its `eslint.config.mjs` adds
-  `allowCatalystSdk(["src/middleware.ts"])`, as `apps/api` does today.
-- esbuild inlines it like every `@repo/*` package, but `express` stays external. Every
-  app that runs Express in the cloud therefore lists `express` in its own
-  `dependencies`.
+Import it; never copy it. It is the one package allowed to import `express`
+(`packages/CLAUDE.md`). esbuild inlines it like every `@repo/*` package, but `express`
+stays external, so every app that runs it in the cloud lists `express` in its own
+`dependencies`.
 
 `apps/api/src/framework/catalyst-logger.ts` is specific to AppSail, not to Express. The
 second AppSail moves it into `node-utils`' `framework/`.

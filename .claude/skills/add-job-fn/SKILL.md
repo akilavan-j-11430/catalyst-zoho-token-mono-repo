@@ -11,8 +11,7 @@ inside it is described in `.claude/rules/catalyst/job-function.md`. This skill c
 1. **Agree it with the user.** It is a new deployable. Settle its name, which is often
    `job-executor`, and the first job it runs.
 2. **Read `.claude/skills/deployable-steps.md` and `.claude/skills/function-steps.md`**
-   and follow them with `--type job`. If `@repo/http-server` does not exist yet, create it
-   first, as `deployable-steps.md` describes, because the dev server imports it.
+   and follow them with `--type job`.
 3. **Write the function** following `job-function.md`:
    - `src/index.ts` - the entry point, ending in `module.exports = handler`
    - `src/job-dispatcher.ts` - reads `jobName`, which is required, and the optional

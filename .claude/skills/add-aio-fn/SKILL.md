@@ -14,9 +14,8 @@ never listens. What goes inside it is described in
    - why it is not a router in `apps/api`
    - whether the browser calls it
 2. **Read `.claude/skills/deployable-steps.md` and `.claude/skills/function-steps.md`**,
-   then follow them with `--type aio`. If `@repo/http-server` does not exist yet, create
-   it first, as described in `deployable-steps.md`. This app imports its middleware,
-   errors and response builders.
+   then follow them with `--type aio`. Import the middleware, `HttpError` and response
+   builders from `@repo/http-server`.
 3. **Write the app**, following `advanced-io-function.md`:
    - `src/app.ts` sets the middleware order of `apps/api`'s `app.ts`.
    - `src/index.ts` is `module.exports = app`.

@@ -2,7 +2,7 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
 import { ApiPath } from "@repo/routing/api-path";
-import { catalystAuth } from "../catalyst-auth";
+import { catalystAuth } from "@repo/testing/catalyst-auth";
 import type { CurrentUser, RegisteredUser } from "@repo/types/user";
 import { app } from "@/app";
 

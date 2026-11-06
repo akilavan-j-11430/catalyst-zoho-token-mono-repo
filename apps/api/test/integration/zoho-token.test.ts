@@ -6,7 +6,7 @@ import { CatalystError } from "@repo/node-utils/errors/catalyst-error";
 import { ZohoAuthError, ZohoAuthErrorCode } from "@repo/node-utils/errors/zoho-auth-error";
 import type { ZohoConnection } from "@repo/node-utils/services/zoho/connection";
 import { ApiPath } from "@repo/routing/api-path";
-import { catalystAuth } from "../catalyst-auth";
+import { catalystAuth } from "@repo/testing/catalyst-auth";
 import { app } from "@/app";
 
 // `zcAuth.init` is faked for the whole workspace by test/setup.ts. The connection and the

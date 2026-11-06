@@ -13,19 +13,14 @@ src/
 |-- app.ts                the Express app - middleware order, route mounting
 |-- env.ts                every environment variable this app reads
 |-- zoho-connections.ts   the app's one ZohoConnection, built from env - see .claude/rules/general/zoho-token.md
-|-- middleware.ts         execution context, request timing, terminal error handler
 |-- routes/api-router.ts  the only place a router mounts
 |-- routes/ping.ts        reference route - copy this shape
 |-- routes/auth.ts        POST /auth/register - registers a Catalyst app user
 |-- routes/me.ts          GET /me - the app user the request is signed in as
 |-- routes/zoho-token.ts  GET connect, callback, status; POST disconnect
-|-- errors/http-error.ts  typed failures that map to HTTP statuses
-|-- utils/api.ts          response builders
 `-- framework/catalyst-logger.ts   console -> Catalyst log pipe, imported for side effect
 test/
-|-- setup.ts              fakes zcAuth.init for every test
-|-- catalyst-auth.ts      catalystAuth - the fake, which a test controls
-|-- unit/                 middleware and helpers, called directly
+|-- setup.ts              fakes zcAuth.init for every test, with @repo/testing/catalyst-auth
 `-- integration/          the app from app.ts, driven through Supertest
 vitest.config.mts         .mts because this package is CommonJS; sets the Zoho keys read at load
 tsconfig.json             src + test, no emit - editor and typecheck
@@ -34,6 +29,10 @@ tsconfig.build.json       src only - build
 
 `app.ts` builds the Express app without a listener, so the integration tests import it
 directly. Tests and how Catalyst is faked: `.claude/rules/general/testing.md`.
+
+The Express plumbing - `initExecutionContext`, `initCatalystScopes`, `errorHandler`,
+`HttpError` and the response builders - lives in `@repo/http-server`, shared with every
+other app that serves HTTP. It is imported from there, never copied.
 
 `catalyst-logger` is imported first in `index.ts` purely for its side effect: it
 replaces the `console` methods so logs are framed for Catalyst's collector. It exports
@@ -62,7 +61,7 @@ else.
 
 ## Execution context
 
-`initExecutionContext` (`src/middleware.ts`) gives every `/api` request an execution id and
+`initExecutionContext` (`@repo/http-server/middleware`) gives every `/api` request an execution id and
 an empty `Catalyst`, and runs the rest of the chain inside `runWithContext`. It builds no
 Catalyst app.
 
@@ -137,7 +136,7 @@ reach `errorHandler` as a 500. `.claude/rules/general/catalyst-sdk.md` is the fu
 ```ts
 import { Router } from "express";
 import { ApiPath } from "@repo/routing/api-path";
-import { toRecordResponse } from "@/utils/api";
+import { toRecordResponse } from "@repo/http-server/response";
 
 export const pingRouter: Router = Router();
 
@@ -154,12 +153,12 @@ boundary without it.
 
 ## Errors and responses
 
-Throw `HttpError` (`src/errors/http-error.ts`) rather than setting a status by hand -
+Throw `HttpError` (`@repo/http-server/http-error`) rather than setting a status by hand -
 `BadRequest` 400, `Unauthorized` 401, `NotFound` 404, `Conflict` 409. `errorHandler`
 maps those; anything else is logged and becomes a 500 with a generic message, so do not
 expect a raw thrown error to surface its message to the client.
 
-Every response goes through `src/utils/api.ts`:
+Every response goes through `@repo/http-server/response`:
 
 - `toRecordResponse(data)` - single record
 - `toPagedResponse(data, page, perPage, count, nextPageToken?)` - computes `totalPages`

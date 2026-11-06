@@ -1,6 +1,6 @@
 # packages/
 
-Shared code for the monorepo. All seven are private and consumed as `"workspace:*"`.
+Shared code for the monorepo. All eight are private and consumed as `"workspace:*"`.
 
 | Package | Holds |
 |---|---|
@@ -8,6 +8,7 @@ Shared code for the monorepo. All seven are private and consumed as `"workspace:
 | `@repo/case-conversion` | `CamelCase` - renames a vendor's snake_case/kebab-case keys, for `node-utils` and `apps/web` |
 | `@repo/types` | API response shapes shared by `apps/api` and `apps/web` |
 | `@repo/node-utils` | `ExecutionContext`, `logger`, `env`, `RuntimeError`, `HttpClient`, `PLimit`, `PLimitPerKey`, the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user-management`) plus the resource handles built from them, the table repositories (`ZohoConnectionRepository`), and the Zoho connection (`services/zoho/`) |
+| `@repo/http-server` | The Express plumbing every app that serves HTTP shares - `initExecutionContext`, `initCatalystScopes`, `validateUserAuthentication`, `errorHandler`, `HttpError`, the response builders. The one package that may import `express` |
 | `@repo/typescript-config` | `base.json` that every tsconfig extends |
 | `@repo/eslint-config` | flat ESLint config: the import boundaries and the camelCase naming rule |
 | `@repo/testing` | `VitestProjects` - the shared Vitest settings; later, any test fake a second workspace needs. Dev-only, never imported from `src/` |
@@ -48,8 +49,8 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
 
 - **Keep them framework-free.** Both an Express app and a Next.js app import these.
   No `express`, no `react`, no Next.js imports. The one exception is
-  `@repo/http-server`, which holds the Express plumbing every HTTP app shares, once a
-  second app needs it - see `.claude/skills/deployable-steps.md`.
+  `@repo/http-server`, which holds the Express plumbing every HTTP app shares - see
+  `.claude/skills/deployable-steps.md`.
 - **`node-utils/src/catalyst/` is the only directory that may import a Catalyst
   SDK.** ESLint enforces it. See `.claude/rules/general/catalyst-sdk.md`.
 - **Catalyst resources are declared once, in `catalyst/resources.ts`** - one

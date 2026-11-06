@@ -12,8 +12,7 @@ event to a handler by the event's `api_name`. What goes inside it is described i
 1. **Agree it with the user.** It is a new deployable. Settle its name, the publisher, and
    the events it handles first.
 2. **Read `.claude/skills/deployable-steps.md` and `.claude/skills/function-steps.md`**,
-   and follow them with `--type event`. If `@repo/http-server` does not exist yet, create
-   it first, as `deployable-steps.md` describes, because the dev server imports it.
+   and follow them with `--type event`.
 3. **Write the function, following `signal-function.md`:**
    - `src/index.ts` converts the delivery to camelCase. List it in
      `allowVendorNames(["src/index.ts"])`, and add `@repo/case-conversion` as a dependency.

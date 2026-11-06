@@ -29,13 +29,20 @@ export function ZohoConnectionPanel() {
     queryKey: STATUS_KEY,
     queryFn: () => ZohoTokenService.fetchStatus(),
   });
-  const { mutate, isPending } = useMutation({
+  const disconnect = useMutation({
     mutationFn: () => ZohoTokenService.disconnect(),
     onSuccess: (status) => {
       queryClient.setQueryData(STATUS_KEY, status);
       toast.success("Zoho disconnected.");
     },
   });
+  // Zoho sends the browser back to the /zoho-token/callback page, which finishes the job.
+  const connect = useMutation({
+    mutationFn: () => ZohoTokenService.fetchConsentUrl(),
+    onSuccess: (consentUrl) => window.location.assign(consentUrl),
+  });
+  // Still disabled once it succeeds, while the browser leaves for Zoho.
+  const isLeavingForZoho = connect.isPending || connect.isSuccess;
 
   if (data === undefined) {
     return <Spinner aria-label="Checking your Zoho connection" className="mx-auto" />;
@@ -56,14 +63,18 @@ export function ZohoConnectionPanel() {
         <ConnectionStatus connected={data.connected} />
       </div>
       {data.connected ? (
-        <Button variant="outline" disabled={isPending} onClick={() => mutate()}>
-          {isPending ? <Spinner aria-hidden /> : <Unplug aria-hidden />}
+        <Button
+          variant="outline"
+          disabled={disconnect.isPending}
+          onClick={() => disconnect.mutate()}
+        >
+          {disconnect.isPending ? <Spinner aria-hidden /> : <Unplug aria-hidden />}
           Disconnect
         </Button>
       ) : (
-        <Button onClick={() => window.location.assign(ZohoTokenService.connectUrl())}>
+        <Button disabled={isLeavingForZoho} onClick={() => connect.mutate()}>
           Connect
-          <ArrowUpRight aria-hidden />
+          {isLeavingForZoho ? <Spinner aria-hidden /> : <ArrowUpRight aria-hidden />}
         </Button>
       )}
     </div>

@@ -1,5 +1,9 @@
 import { ApiPath } from "@repo/routing/api-path";
-import type { ZohoConnectionStatus } from "@repo/types/zoho-token";
+import type {
+  ZohoConnectionStatus,
+  ZohoConsent,
+  ZohoGrantCode,
+} from "@repo/types/zoho-token";
 import { api, ApiClient } from "@/services/api/client";
 
 /**
@@ -13,15 +17,25 @@ export class ZohoTokenService {
     );
   }
 
+  /** Where to send the browser for Zoho's consent screen. Fetched rather than navigated to,
+   *  so the call carries the bearer token. */
+  static async fetchConsentUrl(): Promise<string> {
+    const consent = await ApiClient.recordOf<ZohoConsent>(
+      await api.get(ApiPath.ZohoToken + ApiPath.Connect),
+    );
+    return consent.consentUrl;
+  }
+
+  /** Hands the api what Zoho sent the callback page, which stores the grant. */
+  static async completeConsent(grant: ZohoGrantCode): Promise<ZohoConnectionStatus> {
+    return ApiClient.recordOf<ZohoConnectionStatus>(
+      await api.post(ApiPath.ZohoToken + ApiPath.Callback, grant),
+    );
+  }
+
   static async disconnect(): Promise<ZohoConnectionStatus> {
     return ApiClient.recordOf<ZohoConnectionStatus>(
       await api.post(ApiPath.ZohoToken + ApiPath.Disconnect),
     );
-  }
-
-  /** Where to send the browser to connect. A navigation, not a call: the route answers with
-   *  a redirect to Zoho's consent screen, which fetch cannot follow on the user's behalf. */
-  static connectUrl(): string {
-    return api.url(ApiPath.ZohoToken + ApiPath.Connect);
   }
 }

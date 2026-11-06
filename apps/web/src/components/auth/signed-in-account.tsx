@@ -1,11 +1,12 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { AuthClient, type SignedInUser } from "@/catalyst/auth-client";
+import type { CurrentUser } from "@repo/types/user";
+import { AuthClient } from "@/catalyst/auth-client";
 import { useSignedInUser } from "@/components/auth/auth-gate";
 import { Button } from "@/components/ui/button";
 
-function displayName(user: SignedInUser): string {
+function displayName(user: CurrentUser): string {
   const full = [user.firstName, user.lastName].filter(Boolean).join(" ");
   return full === "" ? user.emailId : full;
 }

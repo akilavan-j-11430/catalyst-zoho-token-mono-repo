@@ -1,11 +1,4 @@
 import type { Authentication } from "@zcatalyst/auth/web";
-import { CamelCase } from "@repo/case-conversion/camel-case";
-
-export interface SignedInUser {
-  emailId: string;
-  firstName?: string;
-  lastName?: string;
-}
 
 interface AuthToken {
   accessToken: string;
@@ -14,9 +7,9 @@ interface AuthToken {
 }
 
 /**
- * Facade: everything this app asks of the Catalyst web SDK - the session, the signed-in
- * user, the API token, and the URLs handed to the SDK. The only code in this app that
- * reaches it.
+ * Facade: everything this app asks of the Catalyst web SDK - the session, sign-out, the API
+ * token, and the URLs handed to the SDK. The only code in this app that reaches it. Who is
+ * signed in comes from the api (`MeService`), not from here.
  */
 export class AuthClient {
   private static readonly TOKEN_REFRESH_MARGIN_MS = 60_000;
@@ -51,12 +44,6 @@ export class AuthClient {
    */
   static appUrl(path: string): string {
     return new URL(path, window.location.origin).toString();
-  }
-
-  /** Resolves the signed-in user, or null. A signed-out visitor is not an error. */
-  static async currentUser(): Promise<SignedInUser | null> {
-    const auth = await AuthClient.session();
-    return AuthClient.toSignedInUser(await auth.isUserAuthenticated());
   }
 
   /**
@@ -109,21 +96,6 @@ export class AuthClient {
     return {
       accessToken: access_token,
       refreshAt: Date.now() + expires_in_sec * 1000 - AuthClient.TOKEN_REFRESH_MARGIN_MS,
-    };
-  }
-
-  private static toSignedInUser(value: unknown): SignedInUser | null {
-    if (typeof value !== "object" || value === null) {
-      return null;
-    }
-    const { emailId, firstName, lastName } = CamelCase.convertKeys(value as Record<string, unknown>);
-    if (typeof emailId !== "string" || emailId === "") {
-      return null;
-    }
-    return {
-      emailId,
-      firstName: typeof firstName === "string" ? firstName : undefined,
-      lastName: typeof lastName === "string" ? lastName : undefined,
     };
   }
 }

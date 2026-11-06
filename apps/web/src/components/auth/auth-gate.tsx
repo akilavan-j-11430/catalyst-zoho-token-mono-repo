@@ -1,16 +1,19 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
-import { AuthClient, type SignedInUser } from "@/catalyst/auth-client";
+import type { CurrentUser } from "@repo/types/user";
 import { Loader } from "@/components/shared/loader";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { MeService } from "@/services/me";
 
-const SignedInUserContext = createContext<SignedInUser | null>(null);
+const CurrentUserContext = createContext<CurrentUser | null>(null);
 
 /** Only valid below an `AuthGate`, which renders nothing until the user is known. */
-export function useSignedInUser(): SignedInUser {
-  const user = useContext(SignedInUserContext);
+export function useSignedInUser(): CurrentUser {
+  const user = useContext(CurrentUserContext);
   if (user === null) {
     throw new Error("useSignedInUser must be called inside an AuthGate.");
   }
@@ -20,22 +23,33 @@ export function useSignedInUser(): SignedInUser {
 /**
  * Provides the signed-in user to everything below it, and renders nothing until that user
  * is known. The (app) layout has already turned a signed-out visitor away on the server, so
- * this only loads who they are. If the session has ended since, it sends them to sign-in.
+ * this only loads who they are, from the api. A 401 there means the session has ended, and
+ * `QueryProvider` sends them to sign-in; any other failure offers a retry.
  */
 export function AuthGate({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<SignedInUser | null>(null);
-  const router = useRouter();
+  // Who is signed in does not change without a reload, so it is fetched once per page load.
+  const { data: user, isPending, isError, refetch } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => MeService.fetchCurrentUser(),
+    staleTime: Infinity,
+  });
 
-  useEffect(() => {
-    // `replace`, not `push`: otherwise Back from /sign-in lands here and bounces.
-    AuthClient.currentUser()
-      .then((found) => (found === null ? router.replace("/sign-in") : setUser(found)))
-      .catch(() => router.replace("/sign-in"));
-  }, [router]);
-
-  if (user === null) {
+  if (isPending) {
     return <Loader label="Checking your session" />;
   }
 
-  return <SignedInUserContext.Provider value={user}>{children}</SignedInUserContext.Provider>;
+  if (isError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Your account could not be loaded.</AlertTitle>
+        <AlertDescription>
+          <Button variant="outline" onClick={() => void refetch()}>
+            Try again
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return <CurrentUserContext.Provider value={user}>{children}</CurrentUserContext.Provider>;
 }

@@ -143,9 +143,6 @@ importers:
 
   apps/web:
     dependencies:
-      '@repo/case-conversion':
-        specifier: workspace:*
-        version: link:../../packages/case-conversion
       '@repo/routing':
         specifier: workspace:*
         version: link:../../packages/routing

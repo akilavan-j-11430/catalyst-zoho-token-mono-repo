@@ -37,7 +37,7 @@ packages/node-utils/
 - `tsconfig.json` covers the tests, so `pnpm typecheck` checks them and the editor resolves
   `@/` in them. Only `tsconfig.build.json` emits, and it never sees `test/`.
 - A framework-free package (`routing`, `types`, `case-conversion`) - anything `apps/web`
-  consumes - sets `"types": []` so a Node API in its `src/` does not compile. One without
+  may import - sets `"types": []` so a Node API in its `src/` does not compile. One without
   tests sets it in `tsconfig.json`. One with tests (`case-conversion`) needs Node types for
   them, so it sets `"types": []` in `tsconfig.build.json` only: there the editor and
   `pnpm typecheck` accept a Node API in `src/`, and only `build` - which `pnpm verify` runs -

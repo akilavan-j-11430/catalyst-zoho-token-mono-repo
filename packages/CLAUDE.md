@@ -5,7 +5,7 @@ Shared code for the monorepo. All eight are private and consumed as `"workspace:
 | Package | Holds |
 |---|---|
 | `@repo/routing` | API path segments (`ApiPath`) shared by `apps/api` and `apps/web` |
-| `@repo/case-conversion` | `CamelCase` - renames a vendor's snake_case/kebab-case keys, for `node-utils` and `apps/web` |
+| `@repo/case-conversion` | `CamelCase` - renames a vendor's snake_case/kebab-case keys, for `node-utils`; framework-free, so `apps/web` may use it too |
 | `@repo/types` | API response shapes shared by `apps/api` and `apps/web` |
 | `@repo/node-utils` | `ExecutionContext`, `logger`, `env`, `RuntimeError`, `HttpClient`, `PLimit`, `PLimitPerKey`, the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user-management`) plus the resource handles built from them, the table repositories (`ZohoConnectionRepository`), and the Zoho connection (`services/zoho/`) |
 | `@repo/http-server` | The Express plumbing every app that serves HTTP shares - `initExecutionContext`, `initCatalystScopes`, `validateUserAuthentication`, `errorHandler`, `HttpError`, the response builders, and `RequestInput` for zod-checked request input. The one package that may import `express` |

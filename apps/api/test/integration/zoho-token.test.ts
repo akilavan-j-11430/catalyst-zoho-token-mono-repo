@@ -27,86 +27,68 @@ vi.mock("@repo/node-utils/catalyst/user-management", () => ({
 }));
 
 const ZOHO_TOKEN = ApiPath.Api + ApiPath.V1 + ApiPath.ZohoToken;
-const CALLBACK_URI = "https://app.example.com/api/v1/zoho-token/callback";
-const WEB_HOME = "https://web.example.com/";
+const CALLBACK_URI = "https://web.example.com/zoho-token/callback";
 const CONSENT_URL = "https://accounts.example.com/oauth/v2/auth?state=1.signature";
 
 beforeEach(() => {
   vi.stubEnv("ZOHO_TOKEN_SCOPES", " ZohoCRM.modules.ALL, ZohoCRM.users.READ ,");
-  vi.stubEnv("ZOHO_TOKEN_CALLBACK_ORIGIN", "https://app.example.com");
-  vi.stubEnv("WEB_APP_ORIGIN", "https://web.example.com");
+  vi.stubEnv("ZOHO_TOKEN_CALLBACK_ORIGIN", "https://web.example.com");
 });
 
 describe("GET /api/v1/zoho-token/connect", () => {
-  it("sends a user who is not connected to Zoho's consent screen", async () => {
+  it("answers the consent url for a user who is not connected", async () => {
     connection.isConnected.mockResolvedValue(false);
     connection.consentUrl.mockResolvedValue(CONSENT_URL);
 
     const consent = await request(app).get(ZOHO_TOKEN + ApiPath.Connect);
 
-    expect(consent.status).toBe(302);
-    expect(consent.headers["location"]).toBe(CONSENT_URL);
+    expect(consent.status).toBe(200);
+    expect(consent.body).toEqual({ status: "success", data: { consentUrl: CONSENT_URL } });
     expect(connection.consentUrl).toHaveBeenCalledExactlyOnceWith(
       ["ZohoCRM.modules.ALL", "ZohoCRM.users.READ"],
       CALLBACK_URI,
     );
   });
 
-  it("sends a connected user home", async () => {
+  it("answers 409 for a connected user, without asking Zoho again", async () => {
     connection.isConnected.mockResolvedValue(true);
 
-    const home = await request(app).get(ZOHO_TOKEN + ApiPath.Connect);
+    const conflict = await request(app).get(ZOHO_TOKEN + ApiPath.Connect);
 
-    expect(home.status).toBe(302);
-    expect(home.headers["location"]).toBe(WEB_HOME);
+    expect(conflict.status).toBe(409);
+    expect(conflict.body).toEqual({ status: "error", message: "Zoho is already connected." });
     expect(connection.consentUrl).not.toHaveBeenCalled();
   });
 });
 
-describe("GET /api/v1/zoho-token/callback", () => {
-  it("stores the grant and sends the user home", async () => {
-    const home = await request(app)
-      .get(ZOHO_TOKEN + ApiPath.Callback)
-      .query({ code: "code-1", state: "1.signature" });
+describe("POST /api/v1/zoho-token/callback", () => {
+  it("stores the grant and answers connected", async () => {
+    const stored = await request(app)
+      .post(ZOHO_TOKEN + ApiPath.Callback)
+      .send({ code: "code-1", state: "1.signature" });
 
-    expect(home.status).toBe(302);
-    expect(home.headers["location"]).toBe(WEB_HOME);
+    expect(stored.status).toBe(200);
+    expect(stored.body).toEqual({ status: "success", data: { connected: true } });
     expect(connection.persistToken).toHaveBeenCalledExactlyOnceWith(
       "code-1",
       "1.signature",
       CALLBACK_URI,
     );
   });
-
-  it("sends a user who denied consent home without storing anything", async () => {
-    const home = await request(app)
-      .get(ZOHO_TOKEN + ApiPath.Callback)
-      .query({ error: "access_denied" });
-
-    expect(home.status).toBe(302);
-    expect(home.headers["location"]).toBe(WEB_HOME);
-    expect(connection.persistToken).not.toHaveBeenCalled();
-  });
 });
 
-describe("GET /api/v1/zoho-token/callback failures", () => {
-  it("answers 400 when the code is missing", async () => {
+describe("POST /api/v1/zoho-token/callback failures", () => {
+  it.each([
+    ["the code is missing", { state: "1.signature" }, "code is required."],
+    ["the state is blank", { code: "code-1", state: " " }, "state is required."],
+    ["the body is not an object", ["code-1"], "Expected a JSON object."],
+  ])("answers 400 when %s", async (_case, body, message) => {
     const rejection = await request(app)
-      .get(ZOHO_TOKEN + ApiPath.Callback)
-      .query({ state: "1.signature" });
+      .post(ZOHO_TOKEN + ApiPath.Callback)
+      .send(body);
 
     expect(rejection.status).toBe(400);
-    expect(rejection.body).toEqual({ status: "error", message: "code is required." });
-    expect(connection.persistToken).not.toHaveBeenCalled();
-  });
-
-  it("answers 400 when the state is missing", async () => {
-    const rejection = await request(app)
-      .get(ZOHO_TOKEN + ApiPath.Callback)
-      .query({ code: "code-1" });
-
-    expect(rejection.status).toBe(400);
-    expect(rejection.body).toEqual({ status: "error", message: "state is required." });
+    expect(rejection.body).toEqual({ status: "error", message });
     expect(connection.persistToken).not.toHaveBeenCalled();
   });
 
@@ -117,8 +99,8 @@ describe("GET /api/v1/zoho-token/callback failures", () => {
     connection.persistToken.mockRejectedValue(new ZohoAuthError(code, code));
 
     const rejection = await request(app)
-      .get(ZOHO_TOKEN + ApiPath.Callback)
-      .query({ code: "code-1", state: "1.signature" });
+      .post(ZOHO_TOKEN + ApiPath.Callback)
+      .send({ code: "code-1", state: "1.signature" });
 
     expect(rejection.status).toBe(400);
     expect(rejection.body).toEqual({
@@ -133,8 +115,8 @@ describe("GET /api/v1/zoho-token/callback failures", () => {
     );
 
     const failure = await request(app)
-      .get(ZOHO_TOKEN + ApiPath.Callback)
-      .query({ code: "code-1", state: "1.signature" });
+      .post(ZOHO_TOKEN + ApiPath.Callback)
+      .send({ code: "code-1", state: "1.signature" });
 
     expect(failure.status).toBe(500);
     expect(failure.body).toEqual({ status: "error", message: "Something went wrong." });

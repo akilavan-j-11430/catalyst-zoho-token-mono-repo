@@ -19,10 +19,11 @@ running full-stack application in a few minutes.
 - A **Turborepo pipeline** so builds are cached and ordered correctly, plus one-command
   bundle and deploy.
 
-- A **Zoho OAuth connection** at `/api/v1/zoho-token/*`: the authorization-code redirect
-  flow with CSRF state, the refresh token stored in a Data Store table this repo owns,
-  and the access token minted on demand behind an in-memory LRU over Catalyst Cache.
-  Credentials live in `.env`, never in a committed Catalyst file.
+- A **Zoho OAuth connection** at `/api/v1/zoho-token/*`: the authorization-code flow with
+  signed CSRF state, finished by a web page that posts the code to the API with the
+  bearer token. The refresh token is stored in a Data Store table this repo owns, and the
+  access token minted on demand behind an in-memory LRU over Catalyst Cache. Credentials
+  live in `.env`, never in a committed Catalyst file.
 
 It is deliberately small. Beyond the Zoho connection there is no domain layer, no auth
 UI, and no example CRUD resource - just the plumbing that every Catalyst solution ends
@@ -160,8 +161,7 @@ Values this repo's own code reads. Each is a key on the owning app's template - 
 | `ZOHO_TOKEN_CLIENT_SECRET` | `apps/api` | Its secret. |
 | `ZOHO_TOKEN_SCOPES` | `apps/api` | Comma-separated scopes the consent screen asks for, e.g. `ZohoCRM.modules.ALL,ZohoCRM.settings.READ`. |
 | `ZOHO_TOKEN_ACCOUNTS_URL` | `apps/api` | The DC's accounts server, scheme and all, e.g. `https://accounts.zoho.in`. |
-| `ZOHO_TOKEN_CALLBACK_ORIGIN` | `apps/api` | The origin the Zoho callback is built on, locally the one `catalyst serve` prints. Plus `/api/v1/zoho-token/callback`, it must equal the client's Authorized Redirect URI. |
-| `WEB_APP_ORIGIN` | `apps/api` | The web app's origin. The browser goes back to its home page once the Zoho connection exists. |
+| `ZOHO_TOKEN_CALLBACK_ORIGIN` | `apps/api` | The web app's origin - locally the one `catalyst serve` prints, in the cloud the Slate domain. Zoho sends the browser back to its `/zoho-token/callback` page, so that full url must equal the client's Authorized Redirect URI. |
 
 These never go in `app-config.json` or any other Catalyst file - that file is committed,
 and `.env` is not. `.claude/rules/general/environment.md` is the full rule.

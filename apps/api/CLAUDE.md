@@ -17,7 +17,7 @@ src/
 |-- routes/ping.ts        reference route - copy this shape
 |-- routes/auth.ts        POST /auth/register - registers a Catalyst app user
 |-- routes/me.ts          GET /me - the app user the request is signed in as
-|-- routes/zoho-token.ts  GET connect, callback, status; POST disconnect
+|-- routes/zoho-token.ts  GET connect, status; POST callback, disconnect
 `-- framework/catalyst-logger.ts   console -> Catalyst log pipe, imported for side effect
 test/
 |-- setup.ts              fakes zcAuth.init for every test, with @repo/testing/catalyst-auth

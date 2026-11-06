@@ -19,7 +19,8 @@ asserting it.
 
 The repo carries exactly one feature: a Zoho OAuth connection, obtained once per
 signed-in Catalyst user and kept until the user disconnects or Zoho rejects it.
-`/api/v1/zoho-token/{connect,callback,status,disconnect}` in `apps/api`, the refresh token
+`/api/v1/zoho-token/{connect,callback,status,disconnect}` in `apps/api` and the
+`/zoho-token/callback` page in `apps/web` that Zoho returns to, the refresh token
 in the `ZohoConnection` table, the access token minted on demand and held in an
 in-memory LRU over Catalyst Cache. The services are
 `packages/node-utils/src/services/zoho/`, the table's only reader is

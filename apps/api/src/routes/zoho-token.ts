@@ -1,16 +1,22 @@
 import { Router } from "express";
+import { z } from "zod";
 import { ApiPath } from "@repo/routing/api-path";
+import { WebPath } from "@repo/routing/web-path";
 import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
 import {
   ZohoAuthError,
   ZohoAuthErrorCode,
 } from "@repo/node-utils/errors/zoho-auth-error";
-import type { ZohoConnectionStatus } from "@repo/types/zoho-token";
-import { logger } from "@repo/node-utils/framework/logger";
-import { env } from "@/env";
+import type {
+  ZohoConnectionStatus,
+  ZohoConsent,
+  ZohoGrantCode,
+} from "@repo/types/zoho-token";
 import { HttpError } from "@repo/http-server/http-error";
-import { toRecordResponse } from "@repo/http-server/response";
 import { initCatalystScopes, validateUserAuthentication } from "@repo/http-server/middleware";
+import { RequestInput } from "@repo/http-server/request-input";
+import { toRecordResponse } from "@repo/http-server/response";
+import { env } from "@/env";
 import { userZohoConnection } from "@/zoho-connections";
 
 /** Failures the user fixes by starting consent again. Every other `ZohoAuthError` -
@@ -28,25 +34,24 @@ function zohoScopes(): string[] {
     .filter((scope) => scope !== "");
 }
 
-function requiredQuery(value: unknown, name: string): string {
-  if (typeof value !== "string" || value.trim() === "") {
-    throw HttpError.BadRequest(`${name} is required.`);
-  }
-  return value;
-}
+/** What the callback page posts once Zoho sends the user back. */
+const grantCodeSchema = z.object(
+  {
+    code: z.string({ error: "is required." }).trim().min(1, "is required."),
+    state: z.string({ error: "is required." }).trim().min(1, "is required."),
+  },
+  { error: "Expected a JSON object." },
+);
 
-/** Zoho matches it exactly against the client's Authorized Redirect URI, so it is sent
- *  identically on consent and on the code exchange. */
+/** The web app's callback page, not a route here: Zoho sends the browser back to it, and
+ *  only a call the web app makes carries the caller's bearer token. Zoho matches it exactly
+ *  against the client's Authorized Redirect URI, so it is sent identically on consent and
+ *  on the code exchange. */
 function callbackUri(): string {
   return new URL(
-    ApiPath.Api + ApiPath.V1 + ApiPath.ZohoToken + ApiPath.Callback,
+    WebPath.ZohoToken + WebPath.Callback,
     env.get("ZOHO_TOKEN_CALLBACK_ORIGIN"),
   ).toString();
-}
-
-/** Where the browser lands once the connection exists - the web app's home page. */
-function webAppHome(): string {
-  return new URL("/", env.get("WEB_APP_ORIGIN")).toString();
 }
 
 export const zohoTokenRouter: Router = Router();
@@ -57,27 +62,23 @@ zohoTokenRouter.use(
   validateUserAuthentication,
 );
 
+// Answers the consent url rather than redirecting to it: a navigation carries no bearer
+// token, so the web app fetches this and sends the browser there itself. A connected user
+// gets a 409, so a second consent never mints another refresh token.
 zohoTokenRouter.get(ApiPath.Connect, async (_req, res) => {
   if (await userZohoConnection.isConnected()) {
-    res.redirect(webAppHome());
-    return;
+    throw HttpError.Conflict("Zoho is already connected.");
   }
-  res.redirect(await userZohoConnection.consentUrl(zohoScopes(), callbackUri()));
+  const consent: ZohoConsent = {
+    consentUrl: await userZohoConnection.consentUrl(zohoScopes(), callbackUri()),
+  };
+  res.json(toRecordResponse(consent));
 });
 
-zohoTokenRouter.get(ApiPath.Callback, async (req, res) => {
-  // Zoho sends `error` instead of a code when the user denies consent. Nothing is
-  // stored, so the browser goes home and the user can start again from there.
-  const denied = req.query["error"];
-  if (denied !== undefined) {
-    logger.info(`Zoho consent was not granted: ${String(denied)}`);
-    res.redirect(webAppHome());
-    return;
-  }
-  const code = requiredQuery(req.query["code"], "code");
-  const state = requiredQuery(req.query["state"], "state");
+zohoTokenRouter.post(ApiPath.Callback, async (req, res) => {
+  const grant: ZohoGrantCode = RequestInput.parse(grantCodeSchema, req.body);
   try {
-    await userZohoConnection.persistToken(code, state, callbackUri());
+    await userZohoConnection.persistToken(grant.code, grant.state, callbackUri());
   } catch (error) {
     if (error instanceof ZohoAuthError && RESTART_CONSENT.has(error.code)) {
       throw HttpError.BadRequest(
@@ -86,7 +87,8 @@ zohoTokenRouter.get(ApiPath.Callback, async (req, res) => {
     }
     throw error;
   }
-  res.redirect(webAppHome());
+  const status: ZohoConnectionStatus = { connected: true };
+  res.json(toRecordResponse(status));
 });
 
 zohoTokenRouter.get(ApiPath.Status, async (_req, res) => {

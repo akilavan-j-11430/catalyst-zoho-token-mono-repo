@@ -78,6 +78,16 @@ describe("POST /api/v1/auth/register failures", () => {
     expect(registerUser).not.toHaveBeenCalled();
   });
 
+  it("answers 400 naming a missing field", async () => {
+    const rejection = await request(app)
+      .post(REGISTER_PATH)
+      .send({ lastName: "Rao", emailId: "asha@example.com" });
+
+    expect(rejection.status).toBe(400);
+    expect(rejection.body).toEqual({ status: "error", message: "firstName is required." });
+    expect(registerUser).not.toHaveBeenCalled();
+  });
+
   it("answers 500 when the Catalyst app cannot be built", async () => {
     catalystAuth.init.mockRejectedValue(new Error("app/invalid_project_details"));
 

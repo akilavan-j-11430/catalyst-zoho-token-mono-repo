@@ -215,6 +215,7 @@ frontmatter when it applies to only part of the tree.
   `@repo/node-utils/framework/logger`, `@repo/node-utils/framework/async-context`,
   `@repo/node-utils/catalyst/resources`, `@repo/node-utils/utils/env`,
   `@repo/http-server/middleware`, `@repo/http-server/http-error`, `@repo/http-server/response`,
+  `@repo/http-server/request-input`,
   `@repo/testing/vitest-projects`.
 - File names are kebab-case: `http-error.ts`, `async-context.ts`.
 - Identifiers and JSON keys are camelCase: `emailId`, `nextPageToken`. The exception is
@@ -263,6 +264,9 @@ In `apps/api`:
 - Throw `HttpError.BadRequest | Unauthorized | NotFound | Conflict`
   (`@repo/http-server/http-error`) instead of setting a status by hand. `errorHandler`
   maps them; anything else becomes a 500.
+- Check a request's body, query or params with a zod schema through `RequestInput.parse`
+  (`@repo/http-server/request-input`), never a hand-written check per field. It answers 400
+  naming the field, so each schema message says what is wrong: `"is required."`.
 - Build every response with `toRecordResponse`, `toPagedResponse`, or
   `toErrorResponse` (`@repo/http-server/response`) so payloads share one envelope.
 - Log through `logger` from `@repo/node-utils/framework/logger`, not `console`.

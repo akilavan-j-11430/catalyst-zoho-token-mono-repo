@@ -69,6 +69,8 @@ second AppSail, an Advanced I/O function, the dev server of a job or Signal func
   `recordRequestTiming`, `errorHandler`
 - `@repo/http-server/http-error` - `HttpError`
 - `@repo/http-server/response` - the response builders
+- `@repo/http-server/request-input` - `RequestInput.parse(schema, input)`, which checks a
+  body, query or params against a zod schema and answers 400 naming the field
 
 Import it; never copy it. It is the one package allowed to import `express`
 (`packages/CLAUDE.md`). esbuild inlines it like every `@repo/*` package, but `express`

@@ -151,6 +151,30 @@ prefix; `ping` is a single route, so it mounts bare and names `ApiPath.Ping` its
 annotation is not optional: the declaration emit cannot infer the type across the package
 boundary without it.
 
+## Validating input
+
+A route declares what it accepts as a zod schema and checks it with
+`RequestInput.parse(schema, req.body)` (`@repo/http-server/request-input`) - `req.query` and
+`req.params` the same way. It returns the typed value or throws a 400 naming the first
+problem, so no route writes a check per field. `routes/auth.ts` is the example:
+
+```ts
+const newUserSchema = z.object(
+  {
+    firstName: z.string({ error: "is required." }).trim().min(1, "is required."),
+    emailId: z.string({ error: "is required." }).trim().pipe(z.email("is not a valid email address.")),
+  },
+  { error: "Expected a JSON object." },
+);
+
+const user: NewUser = RequestInput.parse(newUserSchema, req.body);
+```
+
+The field's path is put in front of the message, so write each message as what is wrong
+with the field - the client reads `emailId is not a valid email address.` A message on the
+object itself covers a body that is not an object at all. The schema lives in the route that
+uses it; shape only - a business rule belongs in a service (`.claude/rules/general/api-layers.md`).
+
 ## Errors and responses
 
 Throw `HttpError` (`@repo/http-server/http-error`) rather than setting a status by hand -

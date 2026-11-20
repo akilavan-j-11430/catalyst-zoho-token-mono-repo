@@ -94,7 +94,7 @@ export const registerUser = withCatalystFn(
       const user: NewUser = InputValidation.parse(newUserSchema, input);
       const registered = await UserManagement.register({
         user,
-        redirectUrl: await redirectUrl(),   // this app's origin, from the request
+        redirectUrl: await RequestUrl.absolute(WebPath.Home),   // this app's origin, from the request
       });
       return { ok: true, registered };
     } catch (error) {

@@ -17,6 +17,7 @@
     "@repo/input-validation": "workspace:*",
     "@repo/logger": "workspace:*",
     "@repo/types": "workspace:*",
+    "@repo/zoho-token": "workspace:*",
     "@zcatalyst/auth": "^1.0.0",
     "@zcatalyst/cache": "^1.0.0",
     "@zcatalyst/datastore": "^1.0.0",

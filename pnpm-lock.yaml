@@ -97,6 +97,9 @@ importers:
       '@repo/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@repo/zoho-token':
+        specifier: workspace:*
+        version: link:../../packages/zoho-token
       '@zcatalyst/auth':
         specifier: ^1.0.0
         version: 1.0.0

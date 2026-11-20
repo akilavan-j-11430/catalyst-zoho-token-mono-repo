@@ -11,7 +11,11 @@
     },
     "dev": {
       "passThroughEnv": [
-        "TZ"
+        "TZ",
+        "ZOHO_TOKEN_CLIENT_ID",
+        "ZOHO_TOKEN_CLIENT_SECRET",
+        "ZOHO_TOKEN_SCOPES",
+        "ZOHO_TOKEN_ACCOUNTS_URL"
       ]
     }
   }

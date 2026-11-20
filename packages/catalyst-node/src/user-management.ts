@@ -1,4 +1,5 @@
 import { UserManagement as UserManagementClient } from "@zcatalyst/auth";
+import { currentContext } from "@repo/async-context/async-context";
 import { CamelCase } from "@repo/case-conversion/camel-case";
 import type { CurrentUser, NewUser, RegisteredUser } from "@repo/types/user";
 import { CatalystScope } from "@/catalyst-scope";
@@ -23,6 +24,9 @@ function toRegisteredUser(details: RegisteredUserDetails): RegisteredUser {
 
 /** Catalyst app users. Like `Zcql`, this names no resource, so it has no handle. */
 export class UserManagement {
+  /** Where the caller is remembered for the rest of the execution. */
+  private static readonly CALLER_KEY = "catalyst.currentUser";
+
   /** Registers an app user. Catalyst emails them a link to confirm and set a
    *  password, and sends them to `redirectUrl` from it. */
   static async register(registration: {
@@ -54,9 +58,25 @@ export class UserManagement {
     }
   }
 
-  /** The app user the request is signed in as. User scope, because only the caller's own
-   *  credentials say who they are - an Admin app has no user behind it. */
+  /** The app user the request is signed in as.
+   *
+   *  Remembered on the execution context, because several calls ask who is calling within
+   *  one request and the answer cannot change midway. The context is built per request, so
+   *  one caller's identity is never visible to another. */
   static async currentUser(): Promise<CurrentUser> {
+    const execution = currentContext().manager;
+    const known = execution.getExtras<CurrentUser>(UserManagement.CALLER_KEY);
+    if (known !== undefined) {
+      return known;
+    }
+    const caller = await UserManagement.fetchCurrentUser();
+    execution.setExtras(UserManagement.CALLER_KEY, caller);
+    return caller;
+  }
+
+  /** User scope, because only the caller's own credentials say who they are - an Admin app
+   *  has no user behind it. */
+  private static async fetchCurrentUser(): Promise<CurrentUser> {
     const users = userManagement(CatalystScope.User);
     try {
       const catalystUser = await users.getCurrentUser();

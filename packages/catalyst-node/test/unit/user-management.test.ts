@@ -46,6 +46,18 @@ describe("UserManagement.currentUser", () => {
     });
   });
 
+  it("asks Catalyst once per execution, however often it is called", async () => {
+    getCurrentUser.mockResolvedValue({ user_id: "7", email_id: "asha@example.com" });
+
+    const [first, second] = await inRequest(async () => [
+      await UserManagement.currentUser(),
+      await UserManagement.currentUser(),
+    ]);
+
+    expect(second).toEqual(first);
+    expect(getCurrentUser).toHaveBeenCalledOnce();
+  });
+
   it("turns an SDK failure into a CatalystError", async () => {
     getCurrentUser.mockRejectedValue(new Error("no user credentials present"));
 

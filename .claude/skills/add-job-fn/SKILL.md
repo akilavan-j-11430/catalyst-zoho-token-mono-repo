@@ -6,7 +6,7 @@ description: Add a Catalyst Job function to this repo - the workspace, catalyst-
 # Add a Job function
 
 One Job function runs every job that names it as `jobTargetFunctionName`. What goes
-inside it is described in `.claude/rules/catalyst/job-function.md`. This skill creates it.
+inside it is described in `.claude/rules/node-job/job-function.md`. This skill creates it.
 
 1. **Agree it with the user.** It is a new deployable. Settle its name, which is often
    `job-executor`, and the first job it runs.
@@ -18,11 +18,12 @@ inside it is described in `.claude/rules/catalyst/job-function.md`. This skill c
      `jobId`, and throws on a missing or unknown `jobName`
    - one class per job in `src/jobs/<job-name>.ts`
    - `src/dev-server.ts`
-4. **Point each job at it.** In `packages/node-utils/src/catalyst/resources.ts`, each
+4. **Point each job at it.** In `packages/repositories/src/resources.ts`, each
    `Job.create` sets `jobTargetFunctionName: "<name>"`. Each job also gets one line in the
    dispatcher's `jobs` map, keyed by its handle's `config.jobName`.
 5. **Set up the dev server:**
-   - Add `packages/routing/src/<name>-path.ts` with the prefix and `JobName: "/:jobName"`.
+   - Add `src/<name>-path.ts` with the prefix and `JobName: "/:jobName"`
+     (`.claude/rules/general/routing.md`).
    - Add a proxy route for the prefix.
    - Add `express` as a `devDependency`.
    - Add a `dev` script that runs `tsx watch` on `src/dev-server.ts`, on a port from 8100

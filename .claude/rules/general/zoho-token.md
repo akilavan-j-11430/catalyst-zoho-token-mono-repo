@@ -1,32 +1,42 @@
 # Zoho token access
 
 Every Zoho access token comes from a `ZohoConnection`
-(`@repo/node-utils/services/zoho/connection`). It mints from the stored refresh token,
-caches the result in the process and in Catalyst Cache, renews five minutes before expiry,
-and serializes concurrent mints per user. Nothing else in the repo talks to the Zoho
-accounts server or holds a token.
+(`@repo/zoho-token/zoho-connection`). It mints from the stored refresh token, caches the
+result in the process and in Catalyst Cache, renews five minutes before expiry, and
+serializes concurrent mints per user. Nothing else in the repo talks to the Zoho accounts
+server or holds a token - `ZohoAccounts` (`@repo/zoho-token/zoho-accounts`) is that server's
+one seam, and only the connection calls it.
 
 ## One connection per app
 
-An app declares its connection once, at module scope, in `src/zoho-connections.ts`, the way
-`resources.ts` declares Catalyst resources. It lives in the app rather than in
-`node-utils` because its credentials are the app's env keys:
+An app declares its connection once, in `src/zoho-connections.ts`, the way `resources.ts`
+declares Catalyst resources. It lives in the app rather than in `@repo/zoho-token` because
+its credentials are the app's env keys:
 
 ```ts
-// apps/api/src/zoho-connections.ts
-export const userZohoConnection = ZohoConnection.create(
-  {
-    accountsUrl: env.get("ZOHO_TOKEN_ACCOUNTS_URL"),
-    clientId: env.get("ZOHO_TOKEN_CLIENT_ID"),
-    clientSecret: env.get("ZOHO_TOKEN_CLIENT_SECRET"),
-  },
-  currentUserGrant,
-);
+// apps/web/src/zoho-connections.ts
+export class ZohoConnections {
+  private static signedInUser: ZohoConnection | undefined;
+
+  static user(): ZohoConnection {
+    ZohoConnections.signedInUser ??= ZohoConnection.create(
+      {
+        accountsUrl: env.get("ZOHO_TOKEN_ACCOUNTS_URL"),
+        clientId: env.get("ZOHO_TOKEN_CLIENT_ID"),
+        clientSecret: env.get("ZOHO_TOKEN_CLIENT_SECRET"),
+      },
+      currentUserGrant,
+    );
+    return ZohoConnections.signedInUser;
+  }
+}
 ```
 
-Import it wherever a token is needed. Never call `ZohoConnection.create` anywhere else.
-A second connection for the same client would still share the caches, but it would split
-what the app asks of Zoho across two places.
+It is built on first use, not at module scope: `next build` loads every page module and has
+no Zoho keys, so a `const` built at import would fail the build. Call
+`ZohoConnections.user()` wherever a token is needed, and never `ZohoConnection.create`
+anywhere else. A second connection for the same client would still share the caches, but it
+would split what the app asks of Zoho across two places.
 
 ## Calling a Zoho API
 
@@ -34,14 +44,16 @@ Ask for the token per request, inside the `headers` resolver of that service's
 `HttpClient` (see `.claude/rules/general/outbound-http.md`):
 
 ```ts
-import { HttpHeader } from "@repo/node-utils/enums/http-header";
-import { HttpClient } from "@repo/node-utils/http/http-client";
-import { userZohoConnection } from "@/zoho-connections";
+import { HttpClient } from "@repo/http-client/http-client";
+import { HttpHeader } from "@repo/http-client/http-header";
+import { Logger } from "@repo/logger/logger";
+import { ZohoConnections } from "@/zoho-connections";
 
 const crm = new HttpClient({
   baseUrl: "https://www.zohoapis.in/crm/v8",
+  logger: Logger.for("zoho-crm"),
   headers: async () => ({
-    [HttpHeader.Authorization]: `Zoho-oauthtoken ${await userZohoConnection.getToken()}`,
+    [HttpHeader.Authorization]: `Zoho-oauthtoken ${await ZohoConnections.user().getToken()}`,
   }),
 });
 ```
@@ -59,36 +71,37 @@ const crm = new HttpClient({
 A `GrantSource` decides whose grant a call uses. The connection's default comes from
 `create`. `withGrant` overrides it for the rest of the execution:
 
-| Grant | Use when | Reference id | Reads its refresh token as |
+| Grant | Use when | Reference id | Reads its refresh token with |
 |---|---|---|---|
-| `currentUserGrant` | a request with a signed-in user | the caller, looked up once per execution | User |
-| `userSpecificGrant(id)` | a job, or any execution acting for a named user | `id`, checked to be numeric | Admin |
+| `currentUserGrant` | a page or action with a signed-in user | the caller, looked up once per execution | `ZohoConnectionRepository.findRefreshToken` - User |
+| `userSpecificGrant(id)` | a job, or any execution acting for a named user | `id`, checked to be numeric | `ZohoConnectionRepository.findRefreshTokenForJob` - Admin |
 
 `userSpecificGrant` reads as Admin because a job has no user to read as. That is safe only
 while `id` is the job's own - never build one from a value the request supplied.
 
-The scope is each grant's own business and not part of `GrantSource`. `isConnected`,
-`persistToken` and `disconnect` are request operations and use User. Deleting a grant
-Zoho rejected can happen inside a job too, so that delete is Admin.
+Each repository method picks its own scope (`repositories.md`), so the grant never passes
+one in. `isConnected`, `persistToken` and `disconnect` are signed-in user operations and
+read with User. Deleting a grant Zoho rejected can happen inside a job too, so that delete is
+Admin.
 
-Both scopes have to be built before the connection runs. Catalyst starts empty for every
-request, so a router that uses a connection mounts
-`initCatalystScopes([CatalystScope.User, CatalystScope.Admin])` - User for the caller and
-their row, Admin for Catalyst Cache (admin-only) and that delete. `zohoTokenRouter` does
-this once for all of its routes.
+Both scopes have to be set before the connection runs. Catalyst starts empty for every
+execution, so a page or Server Action that uses a connection lists
+`[CatalystScope.User, CatalystScope.Admin]` in `withCatalystPage` / `withCatalystFn` - User
+for the caller and their row, Admin for Catalyst Cache (admin-only) and that delete. The
+home page and the three Zoho actions all do.
 
 The `ZohoConnection` table is read and written only through `ZohoConnectionRepository`
-(`@repo/node-utils/repositories/zoho-connection-repository`), the one file that names its
-columns. Its App User scope is **USER**: a signed-in user sees only the rows their own
-credentials created. So `ZohoConnectionRepository.insert` is always User scope, whatever the
-grant, and changing the table back to GLOBAL would let any app user read every refresh token
-from the browser SDK.
+(`@repo/repositories/zoho-connection-repository`), the one file that names its columns. Its
+App User scope is **USER**: a signed-in user sees only the rows their own credentials
+created. So `ZohoConnectionRepository.insert` is always User scope, whatever the grant, and
+changing the table back to GLOBAL would let any app user read every refresh token from the
+browser SDK.
 
 A job has no signed-in user, so it names one **before any other Zoho call**:
 
 ```ts
-userZohoConnection.withGrant(userSpecificGrant(referenceId));
-const token = await userZohoConnection.getToken();
+ZohoConnections.user().withGrant(userSpecificGrant(referenceId));
+const token = await ZohoConnections.user().getToken();
 ```
 
 **`withGrant` writes to the execution context, never to the instance, and it must stay
@@ -104,42 +117,46 @@ user.
 ## Failures
 
 Everything a connection throws is a `ZohoAuthError`
-(`@repo/node-utils/errors/zoho-auth-error`), carrying a `ZohoAuthErrorCode` or Zoho's own
-error string. Letting it reach `errorHandler` gives a 500, which is right for
-`invalid_client` or an unreachable accounts server. Catch it only to map a code the user
-can fix:
+(`@repo/zoho-token/zoho-auth-error`), carrying a `ZohoAuthErrorCode` or Zoho's own error
+string. Letting it throw from a page or Server Action shows the error page, which is right
+for `invalid_client` or an unreachable accounts server. Catch it only to map a code the user
+can fix, and return it as the action's `{ ok: false, problem }` - Next shows the browser
+only a digest of a thrown error:
 
 ```ts
 try {
-  await userZohoConnection.getToken();
+  await ZohoConnections.user().getToken();
 } catch (error) {
   if (error instanceof ZohoAuthError && error.code === ZohoAuthErrorCode.NotConnected) {
-    throw HttpError.Conflict("Connect your Zoho account first.");
+    return { ok: false, problem: "Connect your Zoho account first." };
   }
   throw error;
 }
 ```
 
-`NotConnected` means no refresh token is usable for that user. The fix is the consent flow,
-which the web app starts - see "The consent flow" below.
+`NotConnected` means no refresh token is usable for that user. The fix is the consent flow
+below.
 
 ## The consent flow
 
-The browser reaches the api only through fetch calls that carry its bearer token - in the
-cloud Slate and AppSail are separate origins and no cookie crosses. So nothing in the flow
-is a navigation to the api, and the api never redirects:
+Every step that needs the signed-in user runs in a Server Action, so it carries the
+request's Catalyst headers. Zoho's redirect is a plain navigation to a page:
 
 | Step | Who | What |
 |---|---|---|
-| 1 | web app | `GET /api/v1/zoho-token/connect` answers `{ consentUrl }`, or 409 for a connected user |
+| 1 | home page | `connectZoho` (`app/(app)/connect-zoho.ts`) answers `{ ok: true, consentUrl }`, or `{ ok: false }` for a connected user |
 | 2 | browser | goes to `consentUrl`, Zoho's consent screen |
-| 3 | Zoho | sends the browser to the web app's `/zoho-token/callback?code&state` page |
-| 4 | web app | that page posts `{ code, state }` to `POST /api/v1/zoho-token/callback`, which stores the grant, and goes home |
+| 3 | Zoho | sends the browser to the `/zoho-token/callback?code&state` page |
+| 4 | callback page | calls `completeZohoConsent` (`app/(app)/zoho-token/callback/complete-zoho-consent.ts`), which stores the grant and revalidates the home page, then goes home |
 
-The redirect uri is the web page, built from `WebPath` (`@repo/routing/web-path`) on
-`ZOHO_TOKEN_CALLBACK_ORIGIN` - the web app's origin. The Zoho client's Authorized Redirect
-URI must be exactly that url. Do not point Zoho at an api route: Zoho's redirect carries
-no bearer token, so the api could not tell whose grant it is.
+The redirect uri is `WebPath.ZohoTokenCallback` on the Server Action request's `Origin`
+(`RequestUrl.absolute`), so steps 1 and 4 send the same url and no key configures it. The
+Zoho client's Authorized Redirect URI must be exactly that url, once per origin the app
+runs on - locally the one `catalyst serve` prints, and the Slate domain.
+
+Do not store the grant while the callback page renders. A render can run more than once - a
+prefetch, a refresh - and a grant code is single-use at Zoho, so the page hands the code to
+an action, once per mount.
 
 ## The connection's lifecycle
 
@@ -148,10 +165,10 @@ no bearer token, so the api could not tell whose grant it is.
 | not connected | no row | `false` |
 | connected | the callback stored a row | `true` |
 | rejected by Zoho | the user or an admin revoked it, or Zoho pruned it (a user keeps about 20 refresh tokens per client) | `true` until the next mint, which answers `invalid_code`, deletes the row and throws `NotConnected` |
-| disconnected | `POST /api/v1/zoho-token/disconnect` revokes at Zoho and deletes the row | `false` |
+| disconnected | `disconnectZoho` revokes at Zoho and deletes the row, after the user confirms | `false` |
 
 A grant Zoho has rejected recovers itself: `getToken` deletes it on the first failed mint,
-so the following `/connect` asks for consent again. Do not catch `invalid_code` around
+so the following connect asks for consent again. Do not catch `invalid_code` around
 `getToken` - it never reaches you; `NotConnected` does.
 
 ## The consent state
@@ -188,10 +205,10 @@ mint retries with the table's token; only a rejection of the **table's** token d
 grant. `disconnect` reads the table rather than the LRU for the same reason: revoking a
 stale token would leave the live one working at Zoho.
 
-Deleting a grant clears both of this process's LRUs and the Catalyst Cache entry, not other AppSail
-instances' LRUs. Another instance may keep serving the old access token until it expires,
-which is at most an hour, and may report `isConnected` from its cached refresh token until
-its next mint is rejected.
+Deleting a grant clears both of this process's LRUs and the Catalyst Cache entry, not other
+server instances' LRUs. Another instance may keep serving the old access token until it
+expires, which is at most an hour, and may report `isConnected` from its cached refresh token
+until its next mint is rejected.
 
 A user who denies consent comes back to the callback page with `error` and no code. The
-page tells them so and goes home without calling the api, so nothing is stored.
+page tells them so and goes home without calling the action, so nothing is stored.

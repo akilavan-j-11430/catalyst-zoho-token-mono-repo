@@ -1,31 +1,28 @@
+---
+paths:
+  - "apps/*/catalyst-config.json"
+---
+
 # Advanced I/O function
 
-An Advanced I/O function is an Express app built like `apps/api`, with one difference:
-the deployed function never starts a server. It exports the app, and Catalyst calls the
-app once per request. An Express app is itself a `(req, res)` handler, so that works
-directly.
+An Advanced I/O function is an Express app built as `node-api/express-app.md` describes,
+with one difference: the deployed function never starts a server. It exports the app, and
+Catalyst calls the app once per request. An Express app is itself a `(req, res)` handler,
+so that works directly.
 
 Creating the workspace, its bundle, `catalyst.json` and the `deploy` flag is covered in
-the `add-aio-fn` skill. This file covers what goes inside.
+the `add-aio-fn` skill. This file covers what differs from any other Express app.
 
 ## When to use one
 
-Use it when an HTTP API should deploy and scale separately from `api`, and every request
-finishes inside 30 seconds. Use a router in `apps/api` when the route belongs with the
-rest of the API. Use an AppSail when the work runs longer, holds a connection open, or
-must keep state in memory between requests.
+Use it when an HTTP API should deploy and scale apart from the web app, and every request
+finishes inside 30 seconds. Use an AppSail when the work runs longer, holds a connection
+open, or must keep state in memory between requests (`node-api/code-placement.md`).
 
 ## Layout
 
-```
-apps/<name>/
-  src/app.ts            the Express app - middleware order as in apps/api's app.ts
-  src/index.ts          `module.exports = app` - the bundle entry, never listens
-  src/dev-server.ts     `app.listen(port)` - local only, never bundled
-  src/routes/           routers, as in apps/api
-  src/env.ts            this app's own keys
-  catalyst-config.json  from `catalyst functions:add --type aio`
-```
+The layout, middleware order, scopes, errors and responses are those of
+`node-api/express-app.md`, and its paths follow `general/routing.md`. Two files differ:
 
 ```ts
 // src/index.ts
@@ -35,33 +32,20 @@ module.exports = app;
 ```
 
 ```ts
-// src/dev-server.ts - local only
+// src/dev-server.ts - local only, never bundled
 import { app } from "@/app";
 
 app.listen(8101);
 ```
 
-`app.ts` builds the app without a listener, as `apps/api/src/app.ts` does. That is what lets
-the deployed entry, the dev server and the Supertest integration tests share one app.
-
-## Inside the app
-
-Everything `apps/api/CLAUDE.md` says about routes holds here. Only the import path
-changes, because the shared plumbing comes from `@repo/http-server` (`.claude/skills/deployable-steps.md`):
-- `initExecutionContext`, then the routers, then a JSON 404, then `errorHandler`, in that
-  order.
-- A route that calls Catalyst mounts `initCatalystScopes([...])`, which calls
-  `zcAuth.init(req, { scope })` on the request Catalyst hands the function.
-- Failures are thrown as `HttpError`, responses are built with the response builders, and
-  logging goes through `logger`.
-- Data goes through repositories and handles. The app never constructs an SDK client.
-
-These parts differ from `apps/api`:
-- **No `catalyst-logger.ts`.** It writes to AppSail's log descriptor, which a function
-  does not have.
-- **No port lookup in `index.ts`.** Only the dev server listens.
-- **Paths live in `packages/routing/src/<name>-path.ts`**, named after the app, and start
-  with the app's own prefix.
+- **The logger is configured in `index.ts`,** before the export:
+  `Logger.configure({ output: CatalystLogOutput })` (`general/logging.md`).
+- **No port lookup and no shutdown in `index.ts`.** Only the dev server listens.
+- **Flush after each response.** A run has no `close` to flush before, and Catalyst may
+  stop the instance once the response is sent, so `recordRequestTiming`'s `finish` listener
+  calls `void CatalystLogOutput.flush()` after its own line. Whether lines are lost
+  without it is unverified; check the first deploy's log for the timing line.
+- **`catalyst-config.json`** comes from `catalyst functions:add --type aio`.
 - **`express` is a runtime `dependency`.** The deployed function runs it, so the bundle
   must install it.
 
@@ -77,14 +61,11 @@ not handle both shapes in the app's routes.
 ## Who can call it
 
 - **Security Rules start at `optional`**, so the function URL is public. Each route guards
-  itself, as in `api`: `initCatalystScopes([CatalystScope.User])` answers 401 to a caller
-  without a valid token. Admin scope proves nothing about the caller.
-- **When the browser calls it**, it is a separate origin, like a second AppSail:
-  - `NEXT_PUBLIC_<NAME>_URL`, as in `environment.md`
-  - a client pair in `apps/web/src/services/api/client.ts`
-  - the Slate domain in Authorized Domains
-
-  Never set a CORS header in the app. Catalyst injects one, and a second copy makes the
+  itself: `initCatalystScopes([CatalystScope.User])` answers 401 to a caller without a
+  valid token. Admin scope proves nothing about the caller.
+- **When the web app calls it**, it does so from its server code through `HttpClient`, as
+  for an AppSail - "When the web app calls it" in `.claude/skills/deployable-steps.md`.
+- Never set a CORS header in the app. Catalyst injects one, and a second copy makes the
   browser reject both.
 
 ## Limits
@@ -94,11 +75,11 @@ not handle both shapes in the app's routes.
 
 ## Local run
 
-`"dev": "tsx watch --env-file-if-exists=../../.env --env-file-if-exists=.env src/dev-server.ts"`
+`"dev": "tsx watch --env-file-if-exists=.env src/dev-server.ts"`
 on its own port, 8100 and up. The proxy routes the prefix to that port, so requests go
-through the URL `pnpm dev` prints and carry the Catalyst headers, as they do for `api`.
+through the URL `pnpm dev` prints and carry the Catalyst headers.
 
 ## Tests
 
-Follow `apps/api`: drive the app from `src/app.ts` through Supertest, and fake our
-wrappers and `zcAuth.init`, as `testing.md` describes.
+Drive the app from `src/app.ts` through Supertest, and fake our wrappers and
+`zcAuth.init`, as `node-api/express-app.md` and `testing.md` describe.

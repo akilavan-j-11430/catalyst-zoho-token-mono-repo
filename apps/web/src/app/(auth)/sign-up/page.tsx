@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SignUpForm } from "@/components/auth/sign-up-form";
 import { CardFooterLink } from "@/components/auth/card-footer-link";
 import { CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { WebPath } from "@/web-path";
 
 export const metadata: Metadata = { title: "Create account" };
 
@@ -17,7 +18,7 @@ export default function SignUpPage() {
       <CardContent className="flex flex-1 flex-col">
         <SignUpForm />
       </CardContent>
-      <CardFooterLink prompt="Already have an account?" href="/sign-in" label="Sign in" />
+      <CardFooterLink prompt="Already have an account?" href={WebPath.SignIn} label="Sign in" />
     </>
   );
 }

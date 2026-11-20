@@ -1,0 +1,33 @@
+{
+  "name": "@repo/input-validation",
+  "version": "1.0.0",
+  "description": "InputValidation - checks input from outside the app against a zod schema. Framework-free, so the browser may use it too.",
+  "type": "module",
+  "private": true,
+  "license": "ISC",
+  "scripts": {
+    "dev": "tsc --build tsconfig.build.json && concurrently -n tsc,alias \"tsc --build tsconfig.build.json --watch --preserveWatchOutput\" \"tsc-alias -p tsconfig.build.json --watch\"",
+    "build": "tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test:unit": "vitest run --project unit"
+  },
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/testing": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.13.6",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.5",
+    "vitest": "^5.0.5"
+  }
+}

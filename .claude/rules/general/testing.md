@@ -4,11 +4,11 @@ Vitest runs every test. A tested workspace keeps its tests in `test/`, beside `s
 folders that mirror the layout of `src/`. The folder decides the kind:
 
 ```
-packages/node-utils/
-  src/http/http-client.ts
+packages/http-client/
+  src/http-client.ts
   test/
-    unit/http/http-client.test.ts          one class or function, no network, SDKs mocked
-    integration/http/http-client.test.ts   several pieces over real HTTP
+    unit/http-client.test.ts          one class or function, no network, SDKs mocked
+    integration/http-client.test.ts   several pieces over real HTTP
   vitest.config.ts
   tsconfig.json           src + test + vitest.config.ts, no emit - editor and typecheck
   tsconfig.build.json     src only, emits dist/ - build and dev
@@ -21,24 +21,24 @@ packages/node-utils/
   test file (`testFileBan`), and a workspace that runs Vitest re-allows exactly the
   kinds it has a script for - `allowTestsIn(["unit", "integration"])`, or `["unit"]`
   in `case-conversion` - in its `eslint.config.mjs`. So a test of a kind a workspace does not
-  run, or any test in a workspace with no runner (`routing`, `types`, `apps/web`), is a lint
-  error too.
+  run, or any test in a workspace with no runner (`types`, `async-context`, `apps/web`), is a
+  lint error too.
 - A workspace has a `test:unit` / `test:integration` script only for a folder it has, and an
   empty run fails. A wrong glob or a deleted folder therefore turns `verify` red instead of
   passing with nothing run. Turbo skips a workspace that has no script for the task.
 - Test tooling - `vitest`, `@vitest/*`, `supertest`, `@repo/testing` - may be imported only
   from `test/`, `vitest.config.ts` / `.mts`, and `@repo/testing`'s own `src/` (which is test
   tooling). ESLint rejects a static import of it in `src/`, in every TypeScript extension,
-  where a bundler would ship it - `apps/web` applies the same ban through `testToolingBan`,
+  where a bundler would ship it - `apps/web` applies the same ban through `webImportBan`,
   since its config is built on Next's. A dynamic `import("vitest")` is not checked, nor is a
   dynamic import of a banned SDK; do not write one.
 - `@/` resolves to the workspace's `src/`, so a test imports the code under test exactly as
   the code imports itself.
 - `tsconfig.json` covers the tests, so `pnpm typecheck` checks them and the editor resolves
   `@/` in them. Only `tsconfig.build.json` emits, and it never sees `test/`.
-- A framework-free package (`routing`, `types`, `case-conversion`) - anything `apps/web`
-  may import - sets `"types": []` so a Node API in its `src/` does not compile. One without
-  tests sets it in `tsconfig.json`. One with tests (`case-conversion`) needs Node types for
+- A framework-free package (`types`, `case-conversion`, `http-client`, `input-validation`) -
+  anything `apps/web` may import - sets `"types": []` so a Node API in its `src/` does not
+  compile. One without tests sets it in `tsconfig.json`. One with tests needs Node types for
   them, so it sets `"types": []` in `tsconfig.build.json` only: there the editor and
   `pnpm typecheck` accept a Node API in `src/`, and only `build` - which `pnpm verify` runs -
   catches it.
@@ -51,10 +51,10 @@ packages/node-utils/
   `catalyst serve`. A change to how Catalyst is reached still needs `pnpm dev` and one real
   request through the URL it prints.
 - A change to a `scripts/bundle.mjs`, a dependency, or anything a package reads at runtime
-  also needs `pnpm bundle`: only the bundle shows what AppSail will run.
-- To run one workspace's tests, go through turbo - `pnpm turbo run test:unit --filter=api`.
-  `pnpm --filter api test:unit` skips the build of the packages it imports and tests against
-  whatever `dist/` is on disk.
+  also needs `pnpm bundle`: only the bundle shows what Catalyst will run.
+- To run one workspace's tests, go through turbo -
+  `pnpm turbo run test:unit --filter=@repo/logger`. `pnpm --filter @repo/logger test:unit`
+  skips the build of the packages it imports and tests against whatever `dist/` is on disk.
 
 ## `@repo/testing`
 
@@ -72,8 +72,8 @@ transforms TypeScript itself and nothing else imports the package, so a build wo
 files nobody reads.
 
 A fake moves into it when its second workspace needs it. Until then it lives in that
-workspace's `test/`. `catalystAuth` moved here when `@repo/http-server` took the middleware
-that calls `zcAuth.init`, since `apps/api` and the package both need it.
+workspace's `test/`. `catalystAuth` is here because an API app's tests fake `zcAuth.init`
+too (`node-api/express-app.md`); today only `catalyst-node` imports it.
 
 ## Reset is automatic
 
@@ -91,8 +91,8 @@ export const catalystAuth = {
 catalystAuth.init.mockRejectedValue(new Error("app/invalid_project_details"));   // one test
 ```
 
-A `beforeEach` still has a place for values a test *needs* - `vi.stubEnv("AUTH_REDIRECT_URL",
-...)` in `app.test.ts` - since it runs after the reset.
+A `beforeEach` still has a place for values a test *needs* - a `vi.stubEnv` of a key the code
+under test reads - since it runs after the reset.
 
 ## Faking Catalyst
 
@@ -100,23 +100,18 @@ No test reaches Catalyst. What gets faked depends on what is under test:
 
 | Under test | Fake | Example |
 |---|---|---|
-| A wrapper in `node-utils/src/catalyst/` | the `@zcatalyst/*` package it calls | `zcql.test.ts` mocks `@zcatalyst/datastore` |
-| A route in `apps/api` | our wrapper (`@repo/node-utils/catalyst/...`), and `zcAuth.init` | `app.test.ts` mocks `UserManagement` |
-| Middleware in `@repo/http-server` | `zcAuth.init` | `middleware.test.ts` |
-| A repository in `node-utils/src/repositories/` | the `@zcatalyst/*` package, so the real wrappers run and each call's app shows its scope | `zoho-connection-repository.test.ts` mocks `@zcatalyst/datastore` |
-| A service in `node-utils/src/services/` | the repository, resource handles and other services it calls | `connection.test.ts` mocks `ZohoConnectionRepository`, `zohoConnectionCache`, `ZohoAccounts` and `UserManagement` |
-| A route that uses a Zoho connection | the app's connection (`@/zoho-connections`) | `zoho-token.test.ts` mocks `userZohoConnection` |
-
-`apps/api/src/zoho-connections.ts` reads the Zoho client keys at module scope, so importing
-`@/app` needs them before any test runs. `apps/api/vitest.config.mts` sets test values for
-them in `test.env`; a key a route reads per request is stubbed by the test that needs it.
+| A wrapper in `packages/catalyst-node` | the `@zcatalyst/*` package it calls | `zcql.test.ts` mocks `@zcatalyst/datastore` |
+| `CatalystSession` itself | `zcAuth.init` | `catalyst-session.test.ts` |
+| A repository in `@repo/repositories` | the wrappers' `runIn`, spied on the handle and on `Zcql`, so each test sees the scope a method chose and the statement it sent | `zoho-connection-repository.test.ts` |
+| A service built on repositories, handles and other services | each of them, mocked by the specifier it imports | `zoho-connection.test.ts` mocks `ZohoConnectionRepository`, `zohoConnectionCache`, `ZohoAccounts` and `UserManagement` |
+| A route in an API app | our wrapper (`@repo/catalyst-node/...`), and `zcAuth.init` | `node-api/express-app.md` |
 
 `ZohoConnection` keeps its token caches and grant locks at module level, so they outlive a
-test. `connection.test.ts` gives every test a reference id of its own instead of resetting
-them.
+test. `zoho-connection.test.ts` gives every test a reference id of its own instead of
+resetting them.
 
-`zcAuth.init` is faked for every test in `apps/api` and `@repo/http-server`, each by its own
-`test/setup.ts` (named in `setupFiles` in its `vitest.config`), because no test
+`zcAuth.init` is faked for every test in `@repo/catalyst-node`, and in an API app, each by its
+own `test/setup.ts` (named in `setupFiles` in its `vitest.config`), because no test
 request carries the headers `catalyst serve` injects. The setup spreads the real
 `@zcatalyst/auth` module and swaps only `zcAuth`, so its other exports stay real. Control the
 fake through `catalystAuth` from `@repo/testing/catalyst-auth`. A test that guards a route should
@@ -144,16 +139,16 @@ vi.mock("@zcatalyst/datastore", () => ({
 - The specifier must match the import in the code under test exactly. A mismatch does not
   fail - the real module runs.
 - `vi.mock` names the SDK as a string, so the ESLint ban on importing `@zcatalyst/*` outside
-  `catalyst/` still holds in tests.
+  `packages/catalyst-node` still holds in tests.
 
-A wrapper reads its app from the request context, so a `node-utils` unit test runs it inside
-one, with a stand-in app for the scope it uses - see `queryAsUser` in `zcql.test.ts`. This
-helper stays in `node-utils`: from `@repo/testing` it would load `dist/` while the test loads
-`src/`, two `AsyncLocalStorage` instances that never see each other.
+A wrapper reads its app from the request's execution context, so a `catalyst-node` unit test
+runs the call through `inRequest(...)` (`test/in-request.ts`). It starts a context and sets
+the User and Admin apps from no headers at all, and the faked `zcAuth.init` hands back a
+stand-in app for each. See `queryAsUser` in `zcql.test.ts`.
 
 ## Integration tests
 
-- `apps/api` drives the Express app from `src/app.ts` through Supertest -
+- An API app drives its Express app from `src/app.ts` through Supertest -
   `request(app).post(path).send(body)` - with no port to manage.
 - A test of an outbound client stands up a fake upstream with `node:http` on port 0. That is
   the one import `test/integration/` may use that the rest of the repo may not.
@@ -163,9 +158,9 @@ helper stays in `node-utils`: from `@repo/testing` it would load `dist/` while t
 
 1. `vitest` and `@repo/testing` as devDependencies, `"workspace:*"` for the latter. An app
    whose integration tests drive its HTTP server also takes `supertest` and
-   `@types/supertest`, as `apps/api` does.
+   `@types/supertest`.
 2. `vitest.config.ts`: `export default VitestProjects.forWorkspace(import.meta.dirname);` - named
-   `vitest.config.mts` in a CommonJS workspace (`apps/api`), or Vite loads its ESM syntax as
+   `vitest.config.mts` in a CommonJS workspace, or Vite loads its ESM syntax as
    CommonJS and warns. List the file in `tsconfig.json`'s `include`.
 3. `"test:unit": "vitest run --project unit"` for `test/unit/`, and
    `"test:integration": "vitest run --project integration"` for `test/integration/` - only

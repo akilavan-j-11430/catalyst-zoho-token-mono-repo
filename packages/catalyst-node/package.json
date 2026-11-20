@@ -1,0 +1,40 @@
+{
+  "name": "@repo/catalyst-node",
+  "version": "1.0.0",
+  "description": "The Catalyst wrappers and CatalystSession - every Catalyst SDK call this repo makes, on the server.",
+  "type": "module",
+  "private": true,
+  "license": "ISC",
+  "scripts": {
+    "dev": "tsc --build tsconfig.build.json && concurrently -n tsc,alias \"tsc --build tsconfig.build.json --watch --preserveWatchOutput\" \"tsc-alias -p tsconfig.build.json --watch\"",
+    "build": "tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test:unit": "vitest run --project unit"
+  },
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@repo/testing": "workspace:*",
+    "@types/node": "^24.13.6",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.5",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@repo/async-context": "workspace:*",
+    "@repo/case-conversion": "workspace:*",
+    "@repo/types": "workspace:*",
+    "@zcatalyst/auth": "^1.0.0",
+    "@zcatalyst/cache": "^1.0.0",
+    "@zcatalyst/datastore": "^1.0.0",
+    "@zcatalyst/job-scheduling": "^1.0.0",
+    "@zcatalyst/stratus": "^1.0.0"
+  }
+}

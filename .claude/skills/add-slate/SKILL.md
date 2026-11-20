@@ -10,8 +10,8 @@ description: Add a second Catalyst Slate app to this repo, shaped like apps/web 
 2. **Read `.claude/skills/deployable-steps.md`.**
 3. **Set up the workspace.** Copy the shape of `apps/web` into `apps/<name>`, leaving
    out its product code. Bring:
-   - the providers
-   - `src/services/api/client.ts`
+   - the root layout, with its `Toaster`
+   - `src/execution-context.ts`, `src/server-logging.ts` and `src/env.ts`
    - `src/catalyst/`
    - the shared components it uses
    - `globals.css`
@@ -31,10 +31,11 @@ description: Add a second Catalyst Slate app to this repo, shaped like apps/web 
    alone.
 6. **Add it to the deploy.** In the root `package.json`, add `slate:<name>` to the
    `deploy` script's `--only` list.
-7. **Set up local routing.** The proxy's catch-all belongs to `web`, so this app is served
+7. **Set up local routing.** The proxy's catch-all, `webProxy`, belongs to `web`, so this app is served
    under its own prefix:
-   - Add a `createProxyMiddleware` for `/<name>` with `ws: true`. Register it before the
-     catch-all, and add the prefix to the `server.on("upgrade")` dispatch.
+   - Add a `createProxyMiddleware` for `/<name>` with `ws: true`. Register it before
+     `webProxy`, and have `server.on("upgrade")` pick between the two by prefix - today it
+     hands every upgrade to `webProxy`.
    - In `next.config.ts`, set `basePath: "/<name>"` **only when `NODE_ENV` is
      `development`**. Slate serves every app from `/`, so a basePath in the deployed
      build would 404 every asset.
@@ -43,11 +44,7 @@ description: Add a second Catalyst Slate app to this repo, shaped like apps/web 
 8. **Set it up in the Console:**
    - Activate Slate once per project (Console -> Slate -> Start Exploring). Until then a
      deploy fails with HTTP 400.
-   - On its own Slate Console page, set `NEXT_PUBLIC_API_URL` and every other backend key
-     it reads.
-   - Add its domain to Authorized Domains, so that `api` answers its CORS preflight.
-     Through the MCP the domain is bare (`app.onslate.com`). The Console form wants
-     `https://`.
+   - On its own Slate Console page, set every key on its `src/env.ts`.
    - Set its build settings to `npm install` / `npm run build`. `slate-config.toml`
      applies only to the first deployment, and the bundle rewrites only the staged copy.
 9. **Verify** with "Before calling it done" in `deployable-steps.md`.

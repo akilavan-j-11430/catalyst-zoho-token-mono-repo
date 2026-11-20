@@ -11,20 +11,31 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "@repo/routing": "workspace:*",
+    "@repo/async-context": "workspace:*",
+    "@repo/catalyst-node": "workspace:*",
+    "@repo/env": "workspace:*",
+    "@repo/input-validation": "workspace:*",
+    "@repo/logger": "workspace:*",
     "@repo/types": "workspace:*",
-    "@tanstack/react-query": "^5.103.2",
+    "@repo/zoho-token": "workspace:*",
     "@zcatalyst/auth": "^1.0.0",
+    "@zcatalyst/cache": "^1.0.0",
+    "@zcatalyst/datastore": "^1.0.0",
+    "@zcatalyst/job-scheduling": "^1.0.0",
+    "@zcatalyst/stratus": "^1.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.48.0",
-    "next": "16.3.5",
+    "next": "16.4.5",
+    "pino": "^10.4.0",
     "radix-ui": "^1.6.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hook-form": "^7.88.0",
+    "server-only": "^0.0.1",
     "sonner": "^2.0.8",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
@@ -32,7 +43,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.5",
+    "eslint-config-next": "16.4.5",
     "tailwindcss": "^4"
   },
   "packageManager": "pnpm@10.28.1"

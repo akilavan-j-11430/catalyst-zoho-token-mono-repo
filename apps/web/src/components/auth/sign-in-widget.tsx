@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { AuthClient } from "@/catalyst/auth-client";
 import { Loader } from "@/components/shared/loader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { WebPath } from "@/web-path";
 
-const CONTAINER_ID = "catalyst_signin";
+const CONTAINER_ID = "catalyst-signin";
 const IFRAME_ID = "iam_iframe";
 
 /*
@@ -77,13 +78,7 @@ export function SignInWidget() {
     mounted.current = true;
 
     let stop = (): void => undefined;
-    AuthClient.session()
-      .then((auth) =>
-        auth.signIn(CONTAINER_ID, {
-          redirectUrl: AuthClient.appUrl("/"),
-          cssUrl: AuthClient.appUrl(STYLESHEET),
-        }),
-      )
+    AuthClient.showSignIn(CONTAINER_ID, { afterSignIn: WebPath.Home, stylesheet: STYLESHEET })
       .then(() => {
         setReady(true);
         stop = observeContentHeight((height) =>

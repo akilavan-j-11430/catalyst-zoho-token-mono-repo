@@ -82,7 +82,8 @@ the result.
 A Server Action returns a rejected field as `{ ok: false, field, problem }`, and the form
 puts it on that field with `setError`. Anything else that fails is a toast the form raises
 itself - Next shows the browser only a digest of a thrown error, so its message is never
-shown. Success messages stay with the form too.
+shown. Success messages stay with the form too. An error nothing catches is logged by
+`src/instrumentation.ts` and shown by `src/app/error.tsx` - `.claude/rules/nextjs/errors.md`.
 
 What belongs here is the toast, because it is styling rather than data flow.
 `components/ui/sonner.tsx` is the vendored Toaster, at sonner's own top-center position and

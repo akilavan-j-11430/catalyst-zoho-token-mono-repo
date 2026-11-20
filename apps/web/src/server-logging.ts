@@ -4,10 +4,10 @@ import { Logger } from "@repo/logger/logger";
 import { env } from "@/env";
 
 // Configures the logger for this part of the server. Next splits server code into separate
-// bundles, each with its own copy of @repo/logger, so configuring it in one place - such as
-// instrumentation.ts - leaves the others unconfigured. execution-context.ts imports this, and
-// every page, Server Action and route handler imports that, so each copy is configured once,
-// before it writes a line.
+// bundles, each with its own copy of @repo/logger, so configuring it in one place leaves the
+// others unconfigured. execution-context.ts imports this, and every page, Server Action and
+// route handler imports that; instrumentation.ts imports it for its own copy. Each copy is
+// then configured once, before it writes a line.
 Logger.configure({
   timeZone: env.optional("TZ"),
   output: CatalystLogOutput,

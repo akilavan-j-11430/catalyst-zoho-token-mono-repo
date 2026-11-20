@@ -113,7 +113,8 @@ navigation nor stops its page from rendering. It only redirects; each page and a
 its own scopes as well, and that is what protects the data.
 
 `@repo/logger` gets `CatalystLogOutput` in `src/server-logging.ts`, which `execution-context.ts`
-imports - `general/logging.md` says why there and not in `instrumentation.ts`.
+and `instrumentation.ts` each import - `general/logging.md` says why both. An error nothing
+catches is logged by `instrumentation.ts` and shown by `app/error.tsx` (`errors.md`).
 
 ## When it moves
 

@@ -33,17 +33,19 @@ Logger.configure({ timeZone: env.optional("TZ"), output: CatalystLogOutput });
 
 | Deployable | Configured in | On shutdown |
 |---|---|---|
-| the Next.js server (`apps/web`) | `src/server-logging.ts`, imported by `src/execution-context.ts` | `process.once("SIGTERM", () => void CatalystLogOutput.flush())` beside it - best effort, since Next runs its own shutdown |
+| the Next.js server (`apps/web`) | `src/server-logging.ts`, imported by `src/execution-context.ts` and `src/instrumentation.ts` | `process.once("SIGTERM", () => void CatalystLogOutput.flush())` beside it - best effort, since Next runs its own shutdown |
 | an AppSail | `src/index.ts`, before `listen` | on `SIGTERM` and `SIGINT`: close the server, `await CatalystLogOutput.flush()`, then exit |
 | a Catalyst function | `src/index.ts`, before the export (`function-entry-point.md`) | before each run closes: `await CatalystLogOutput.flush()`, then `closeWithSuccess()` or `closeWithFailure()` - Catalyst may stop the process once the run closes. With no collector it returns at once. An Advanced I/O function has no close, so it flushes once each response finishes (`advanced-io-function.md`) |
 
 - **Only an entry point configures.** `configure` throws once a line has been written, so a
   package, a route or a test never calls it. A package only calls `Logger.for`.
-- **In Next.js, never in `instrumentation.ts`.** Next bundles server code apart, and each
-  bundle gets its own copy of `@repo/logger`. `instrumentation.ts` would configure its own copy
-  and leave the pages' copy unconfigured. Every page, Server Action and route handler
-  imports `execution-context.ts`, which imports `server-logging.ts`, so every copy is
-  configured before it writes.
+- **In Next.js, every bundle configures its own copy.** Next bundles server code apart, and
+  each bundle gets its own copy of `@repo/logger` - checked on a production build, where
+  `serverExternalPackages` does not merge them for a workspace package. Configuring once in
+  `instrumentation.ts` would leave the pages' copies unconfigured. So every page, Server
+  Action and route handler imports `execution-context.ts`, which imports `server-logging.ts`,
+  and `instrumentation.ts` imports it too, for the copy its `onRequestError` writes with
+  (`nextjs/errors.md`).
 - **The app never reads the collector's variable.** `CatalystLogOutput` reads
   `X_ZOHO_SPARKLET_LOG_FD` itself. Where it is unset - locally, under `catalyst serve` or
   `pnpm dev` - each block goes to stdout instead, so nothing changes between local and

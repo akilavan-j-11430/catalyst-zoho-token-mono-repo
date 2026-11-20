@@ -232,6 +232,8 @@ second Slate app's `src/app/` and `src/components/` - each scoped with `paths:` 
 - `typography.md` - every font.
 - `component-design.md` - how a component is split, styled and laid out, how it shows a
   wait, and asking before adding a confirm dialog to a button that changes data.
+- `errors.md` - a failure an action returns, and an uncaught error: how it is logged and what
+  the visitor sees.
 
 `.claude/rules/catalyst/` holds the rules every Catalyst function shares, and the kinds that
 have no folder of their own - what goes inside each, how it is run locally, and its limits.

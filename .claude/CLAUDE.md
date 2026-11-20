@@ -1,6 +1,6 @@
-# catalyst-basic-mono-repo
+# catalyst-zoho-token-mono-repo
 
-Starter kit for Zoho Catalyst customer solutions. pnpm workspaces + Turborepo.
+The basic Catalyst monorepo plus a Zoho OAuth connection. pnpm workspaces + Turborepo.
 Clone, run `catalyst init` to bind it to your own Catalyst project, then build.
 
 Setup and troubleshooting are in `README.md` and not repeated here. This file covers
@@ -17,10 +17,21 @@ load the relevant skill (`catalyst-datastore`, `catalyst-authentication`,
 `catalyst-appsail`, `catalyst-slate`, `catalyst-basics`) or check the docs before
 asserting it.
 
-This is a starter kit, so most tasks mean adding the *first* thing of its kind -
-the first table, the first domain route, the first shared model. Extend the shape
-that is already here instead of introducing a second one; "Adding to the repo"
-below is the checklist for each kind.
+The repo carries exactly one feature: a Zoho OAuth connection, obtained once per
+signed-in Catalyst user and kept until the user disconnects or Zoho rejects it. The home
+page reads it on the server and shows a connect or disconnect button; the `connectZoho`,
+`disconnectZoho` and `completeZohoConsent` Server Actions in `apps/web/src/app/(app)/` do
+the writes, and `/zoho-token/callback` is the page Zoho returns to. The refresh token sits in
+the `ZohoConnection` table, and the access token is minted on demand and held in an
+in-memory LRU over Catalyst Cache. The connection and the Zoho accounts seam are
+`packages/zoho-token`, the table's only reader is
+`packages/repositories/src/zoho-connection-repository.ts`, and
+`.claude/rules/general/zoho-token.md` is how to use them.
+
+Everything else is still bare plumbing, so most other tasks mean adding the *first*
+thing of their kind - the first bucket, the first job, the first shared model. Extend
+the shape that is already here instead of introducing a second one; "Adding to the
+repo" below is the checklist for each kind.
 
 Where new work goes:
 
@@ -48,8 +59,8 @@ Where new work goes:
 - This app's records -> a repository in `packages/repositories` (`@repo/repositories`),
   whether they sit in a Data Store table or in a CRM; every Catalyst resource handle goes in
   its `resources.ts`. An outside service asked to *do* something - create a lead, send an
-  email - is a client in its own `packages/<service>`. The package arrives with the first
-  resource; `.claude/rules/general/repositories.md` has the rule.
+  email - is a client in its own `packages/<service>`, as `packages/zoho-token` is for the
+  Zoho accounts server; `.claude/rules/general/repositories.md` has the rule.
 - Logging -> `packages/logger` (`Logger.for("<source>")`); the request's execution
   context -> `packages/async-context`. Both rest on `node:async_hooks`, so they are server
   only - in `apps/web` only server code (a page, a Server Action, a route handler) reaches
@@ -65,9 +76,10 @@ Bring these back to the user rather than deciding alone:
 
 - Anything that changes the deploy surface: a new AppSail, a new Catalyst service,
   a new runtime dependency.
-- Product and business rules. This repo has no domain model. If a task needs an
-  entity, a field, or a status value that is not specified, ask - a wrong schema is
-  expensive to unwind once routes and UI depend on it.
+- Product and business rules. `ZohoConnection` is the only entity this repo models,
+  and it holds a reference id and a refresh token. If a task needs another entity, a
+  field, or a status value that is not specified, ask - a wrong schema is expensive to
+  unwind once routes and UI depend on it.
 
 ## Architecture
 
@@ -100,6 +112,8 @@ An API app, once there is one, gets its own prefix route in the proxy ahead of `
 | `packages/env` | `@repo/env` | - |
 | `packages/http-client` | `@repo/http-client` | - |
 | `packages/input-validation` | `@repo/input-validation` | - |
+| `packages/repositories` | `@repo/repositories` | - |
+| `packages/zoho-token` | `@repo/zoho-token` | - |
 | `packages/typescript-config` | `@repo/typescript-config` | - |
 | `packages/eslint-config` | `@repo/eslint-config` | - |
 | `packages/testing` | `@repo/testing` | - |
@@ -197,6 +211,7 @@ Topic rules live one-per-file in `.claude/rules/` and load automatically, one fo
 - `logging.md` - every log line, and how each deployable injects `CatalystLogOutput` into the
   logger and flushes it on shutdown.
 - `environment.md` - every environment variable.
+- `zoho-token.md` - every Zoho access token, and the consent flow that grants one.
 - `code-design.md` - every class, and the pattern it follows.
 - `readable-code.md` - casing, naming, and when complexity is worth it.
 - `testing.md` - where tests live, how Catalyst is faked, and what to run before calling a
@@ -252,7 +267,7 @@ frontmatter when it applies to only part of the tree.
 - Shared packages expose subpaths, not a barrel: `@repo/types/user`,
   `@repo/case-conversion/camel-case`,
   `@repo/logger/logger`, `@repo/async-context/async-context`,
-  `@repo/repositories/resources`, `@repo/env/define-env`,
+  `@repo/repositories/resources`, `@repo/zoho-token/zoho-connection`, `@repo/env/define-env`,
   `@repo/http-client/http-client`,
   `@repo/input-validation/input-validation`,
   `@repo/testing/vitest-projects`.
@@ -311,9 +326,7 @@ mounted. A `route.ts` in `apps/web` serves only the web app's own browser
 domain type in `packages/types`, and a repository in
 `packages/repositories/src/<name>-repository.ts` that is the only importer of the
 handle and maps rows to the domain type. Callers - a page, an action, a route - call the
-repository. The first one creates
-`packages/repositories` as a shared package (below), depending on `@repo/catalyst-node`, with
-`allowVendorNames` over its `src/` for the Catalyst column names. See
+repository. `ZohoConnectionRepository` is the worked example. See
 `.claude/rules/general/repositories.md`.
 
 **An AppSail, a function or a Slate app** - a new deployable, so agree it with the user

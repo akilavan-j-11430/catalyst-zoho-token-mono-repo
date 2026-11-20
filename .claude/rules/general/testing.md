@@ -102,7 +102,13 @@ No test reaches Catalyst. What gets faked depends on what is under test:
 |---|---|---|
 | A wrapper in `packages/catalyst-node` | the `@zcatalyst/*` package it calls | `zcql.test.ts` mocks `@zcatalyst/datastore` |
 | `CatalystSession` itself | `zcAuth.init` | `catalyst-session.test.ts` |
+| A repository in `@repo/repositories` | the wrappers' `runIn`, spied on the handle and on `Zcql`, so each test sees the scope a method chose and the statement it sent | `zoho-connection-repository.test.ts` |
+| A service built on repositories, handles and other services | each of them, mocked by the specifier it imports | `zoho-connection.test.ts` mocks `ZohoConnectionRepository`, `zohoConnectionCache`, `ZohoAccounts` and `UserManagement` |
 | A route in an API app | our wrapper (`@repo/catalyst-node/...`), and `zcAuth.init` | `node-api/express-app.md` |
+
+`ZohoConnection` keeps its token caches and grant locks at module level, so they outlive a
+test. `zoho-connection.test.ts` gives every test a reference id of its own instead of
+resetting them.
 
 `zcAuth.init` is faked for every test in `@repo/catalyst-node`, and in an API app, each by its
 own `test/setup.ts` (named in `setupFiles` in its `vitest.config`), because no test

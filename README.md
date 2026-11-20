@@ -1,9 +1,9 @@
-# catalyst-basic-mono-repo
+# catalyst-zoho-token-mono-repo
 
 A monorepo starter kit for building customer solutions on
-[Zoho Catalyst](https://catalyst.zoho.com). Clone it, point it at your own Catalyst
-project with `catalyst init`, and you have a running full-stack application in a few
-minutes.
+[Zoho Catalyst](https://catalyst.zoho.com), carrying a working Zoho OAuth connection.
+Clone it, point it at your own Catalyst project with `catalyst init`, and you have a
+running full-stack application in a few minutes.
 
 **What you get out of the box**
 
@@ -21,8 +21,14 @@ minutes.
 - A **Turborepo pipeline** so packages build in dependency order, plus one-command bundle
   and deploy.
 
-It is deliberately small. There is no database layer and no example CRUD resource -
-just the plumbing that every Catalyst solution ends up needing, done once
+- A **Zoho OAuth connection** on the home page: the authorization-code flow with signed
+  CSRF state, started and finished by Server Actions, with a confirm dialog before
+  disconnecting. The refresh token is stored in a Data Store table this repo owns, and the
+  access token minted on demand behind an in-memory LRU over Catalyst Cache. Credentials
+  live in `.env`, never in a committed Catalyst file.
+
+It is deliberately small. Beyond the Zoho connection there is no domain layer and no example
+CRUD resource - just the plumbing that every Catalyst solution ends up needing, done once
 and done consistently.
 
 ---
@@ -140,6 +146,11 @@ the table -> Scopes & Permissions**: an App User can read by default, and insert
 delete only once you allow them. A write without permission throws a `CatalystError`, so
 check this first when an action that works as Admin fails for a signed-in user.
 
+The Zoho connection needs one table, **`ZohoConnection`**, with two text columns:
+`REFERENCE_ID` and `REFRESH_TOKEN`, the latter encrypted. Set its App User scope to **USER**,
+so each user reads back only the row their own credentials created, and allow App Users to
+insert - the grant is stored as the signed-in user, and deleted as Admin.
+
 **3. Fill in the environment**
 
 Each deployable has its own `.env`, gitignored, beside a committed `.env.example` that lists
@@ -154,6 +165,14 @@ Then fill `apps/web/.env` in:
 
 - **`TZ`** - optional. Your timezone for log timestamps, e.g. `Asia/Kolkata`; blank keeps the
   logger's default, `Asia/Kolkata`.
+- **The four Zoho OAuth keys**, from a Server-based client at https://api-console.zoho.com:
+  `ZOHO_TOKEN_CLIENT_ID`, `ZOHO_TOKEN_CLIENT_SECRET`, `ZOHO_TOKEN_SCOPES` (comma-separated,
+  e.g. `ZohoCRM.modules.ALL,ZohoCRM.settings.READ`) and `ZOHO_TOKEN_ACCOUNTS_URL` (the DC's
+  accounts server, e.g. `https://accounts.zoho.in`). Set the client's Authorized Redirect
+  URI to the origin `catalyst serve` prints plus `/zoho-token/callback` - e.g.
+  `http://localhost:3001/zoho-token/callback` - and add the Slate domain's the same way
+  before deploying. The app builds the redirect uri from the request's origin, so no key
+  names it.
 - **The five Catalyst SDK keys** - take them from `catalyst serve`, which works them out from
   the project and data centre you signed in to. Run `pnpm serve` once; when the proxy starts
   it prints them, ready to paste:
@@ -176,7 +195,7 @@ Why the web app needs them and the proxy does not: `catalyst serve` sets them fo
 the one AppSail it runs, but turbo starts the web app, so it only has what Next loads from
 `apps/web/.env`.
 
-On Slate, set `TZ` and the four data-centre keys - every key above except
+On Slate, set `TZ`, the four Zoho keys and the four data-centre keys - every key above except
 `X_ZOHO_CATALYST_IS_LOCAL`, which is never set when deployed - in **Console -> Slate -> web ->
 Environment Variables**. Whether Slate sets the data-centre keys itself is checked on the
 first deploy (below).
@@ -233,6 +252,8 @@ is the page - copy it as the shape for your own.
 |   |-- env/                @repo/env                defineEnv, each app's declared variables
 |   |-- http-client/        @repo/http-client        HttpClient, for Node and the browser
 |   |-- input-validation/   @repo/input-validation   zod-checked input, InvalidInputError
+|   |-- repositories/       @repo/repositories       resource handles, ZohoConnectionRepository
+|   |-- zoho-token/         @repo/zoho-token         ZohoConnection, ZohoAccounts
 |   |-- case-conversion/    @repo/case-conversion    vendor keys -> camelCase
 |   |-- testing/            @repo/testing            shared Vitest config
 |   |-- typescript-config/  @repo/typescript-config  base tsconfig
@@ -336,7 +357,7 @@ this script. It is `turbo run bundle && catalyst deploy --only slate:web`:
 **The proxy is not in that list, and must not be.** It is a local-development
 component only. In the cloud the web app reads and writes on its own server.
 
-**The web app's keys** - `TZ` and the four data-centre keys from step 3 - are
+**The web app's keys** - `TZ`, the four Zoho keys and the four data-centre keys from step 3 - are
 set in **Console -> Slate -> web -> Environment Variables**, once per environment. The server
 reads them at request time. Sign-up needs no redirect key: the Server Action sends new users
 to the origin the request came from. `apps/web/.env.example` documents each one, and a local

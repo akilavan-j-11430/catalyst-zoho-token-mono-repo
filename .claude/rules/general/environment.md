@@ -12,6 +12,7 @@ import { defineEnv } from "@repo/env/define-env";
 type WebEnv = {
   /** Timezone for log timestamps. Falls back to the logger's own default. */
   TZ: string;
+  // ... and one entry per Zoho OAuth key; see the real file for the full list.
 };
 
 export const env = defineEnv<WebEnv>();
@@ -132,7 +133,8 @@ The SDK reads five keys of its own when it loads: `X_ZOHO_CATALYST_IS_LOCAL`,
 
 ## `apps/web` reads its keys on the server
 
-`apps/web`'s template, `src/env.ts`, is the one above: today only `TZ`. It imports
+`apps/web`'s template, `src/env.ts`, is the one above: `TZ` and the four Zoho OAuth keys
+that `src/zoho-connections.ts` and `connectZoho` read. It imports
 `server-only`, so only server code - a page, a Server Action, `server-logging.ts` - reads
 it, through `env`, never `process.env`. The four steps above apply unchanged, with
 `apps/web/turbo.json` passing the key through for `dev`.
@@ -141,6 +143,9 @@ it, through `env`, never `process.env`. The four steps above apply unchanged, wi
   write on the server, so the browser needs no backend URL. A `NEXT_PUBLIC_*` value is
   inlined into the browser bundle at `next build`, so it would be public, and changing it
   would need a rebuild - add one only when the browser itself must know a value.
+- **Read a key when it is used, never at import.** `next build` loads every page module
+  with no app keys set, so an `env.get` at module scope fails the build -
+  `ZohoConnections.user()` builds its connection on first use for this reason.
 - Set the deployed values in **Console -> Slate -> web -> Environment Variables**.
   `scripts/bundle.mjs` never stages a `.env*` file, so a local value cannot ship.
 

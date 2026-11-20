@@ -68,7 +68,9 @@ async insertRow(row: Row): Promise<StoredRow<Row>> {
 ```
 
 The exception is an API that itself takes a callback - `AsyncLocalStorage.run`, Express
-middleware, `Array.map`/`filter`.
+middleware, `Array.map`/`filter` - and `PLimit`/`PLimitPerKey` (`packages/zoho-token/src/`),
+whose whole job is to decide when a task runs. The per-user lock in `ZohoConnection` is
+that case, not a wrapper to inline.
 
 Events follow the same split. Consuming a Node event is allowed, but prefer the awaitable
 form where Node has one:

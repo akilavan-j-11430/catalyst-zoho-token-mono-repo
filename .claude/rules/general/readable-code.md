@@ -30,10 +30,13 @@ function toRegisteredUser(details: RegisteredUserDetails): RegisteredUser {
   Catalyst table rows are mapped field by field in their repository instead.
 - ESLint enforces it (`@typescript-eslint/naming-convention`, from `@repo/eslint-config`).
   The vendor seams are exempt through `allowVendorNames(files)` - all of `catalyst-node`'s
-  `src/`, the package that wraps Catalyst, plus `logger`'s `catalyst-log-output.ts` - and so
-  are six tests whose inputs are vendor-cased: `case-conversion`'s `camel-case.test.ts`,
-  `env`'s `define-env.test.ts`, `catalyst-node`'s `user-management.test.ts`, `table.test.ts`
-  and `job.test.ts`, and `logger`'s `catalyst-log-output.test.ts`. `apps/web` builds on Next's config instead and leaves
+  `src/`, the package that wraps Catalyst, and of `repositories`' `src/`, which names the
+  table columns, plus `logger`'s `catalyst-log-output.ts` and `zoho-token`'s
+  `zoho-accounts.ts`, the Zoho accounts seam - and so are seven tests whose inputs are
+  vendor-cased: `case-conversion`'s `camel-case.test.ts`, `env`'s `define-env.test.ts`,
+  `catalyst-node`'s `user-management.test.ts`, `table.test.ts` and `job.test.ts`, `logger`'s
+  `catalyst-log-output.test.ts`, and `repositories`' `zoho-connection-repository.test.ts`. A
+  fake Zoho response is written as a JSON string, so it needs none. `apps/web` builds on Next's config instead and leaves
   `src/catalyst/` and `src/env.ts` out of the rule's `files` with `ignores`, along with the
   vendored shadcn primitives in `src/components/ui/`. A key that needs quotes
   (`"content-type"`, `"--width"`) is a wire string and is never checked. Add a file to the

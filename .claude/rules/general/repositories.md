@@ -10,8 +10,8 @@ SDK and would serve any Catalyst solution, while repositories are this solution'
 and change with the product. The package also holds `resources.ts`, every Catalyst resource
 handle this app declares (`catalyst-sdk.md`), since those are this solution's too. It depends
 on `@repo/catalyst-node` and calls its wrappers, never `@zcatalyst/*`, and the web app, every
-AppSail and every function import it, so none writes its own queries. It does not exist yet:
-it arrives with the first resource.
+AppSail and every function import it, so none writes its own queries.
+`ZohoConnectionRepository` is the one repository so far.
 
 Nothing else touches a table handle or `Zcql` - not a route, an area, a page or a job. ZCQL, column names and `ROWID`
 are all Catalyst's, the deepest lock-in here, so they stay in one place: the table's

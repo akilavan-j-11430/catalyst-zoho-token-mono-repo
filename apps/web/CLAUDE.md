@@ -36,9 +36,13 @@ app - a mobile app, a webhook, another service - is served by an API app, not by
 
 Shapes two workspaces use live in `@repo/types` (`@repo/types/user` for the user shapes) -
 defined once, never redeclared here. Server-only configuration is on `src/env.ts`
-(`TZ`), read through `env`; the browser reads no environment variable. Sign-up's
-confirmation link points at the origin the Server Action request came from, so no URL is
-configured.
+(`TZ` and the Zoho OAuth keys), read through `env`; the browser reads no environment
+variable. Sign-up's confirmation link and the Zoho redirect uri both point at the origin the
+Server Action request came from (`src/request-url.ts`), so no URL is configured.
+
+The Zoho connection is declared once in `src/zoho-connections.ts`. The home page reads it,
+`connectZoho` and `disconnectZoho` sit beside that page, and `completeZohoConsent` beside
+the `/zoho-token/callback` page Zoho returns to - `.claude/rules/general/zoho-token.md`.
 
 ## Who may see a page
 
@@ -111,8 +115,9 @@ a domain concept does not belong here - it gets a folder beside `auth/`.
 
 Non-component code stays out of `components/` **once it has a second caller or is a
 seam**: `src/catalyst/auth-client.ts` is the only browser code that talks to the Catalyst
-web SDK, and `src/execution-context.ts` is the only way a page or an action reaches
-Catalyst on the server. What one component alone uses - a form's resolver, a formatter -
+web SDK, `src/execution-context.ts` is the only way a page or an action reaches
+Catalyst on the server, and `src/request-url.ts` is the server's way to this app's own origin,
+which sign-up and the Zoho actions both need. What one component alone uses - a form's resolver, a formatter -
 stays in that component until something else needs it. A Server Action sits beside the page
 that uses it (`app/(auth)/sign-up/register-user.ts`). Routes stay thin and import from the
 rest.

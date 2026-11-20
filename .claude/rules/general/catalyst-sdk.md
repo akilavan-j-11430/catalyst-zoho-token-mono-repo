@@ -197,8 +197,10 @@ await Zcql.runIn(CatalystScope.User).executeQuery(
 - A count of values that does not match the `?`s throws before any call.
 - The error from a failed query never carries the statement, since it holds the values.
 
-This is a starter kit, so it ships no resources. `@repo/repositories` and its `resources.ts`
-arrive with the first one.
+`resources.ts` declares two: `zohoConnectionTable` for the `ZohoConnection` table, imported
+only by `zoho-connection-repository.ts`, and `zohoConnectionCache` for the project's default
+cache segment, which holds minted Zoho access tokens. The OAuth consent state is signed, not
+stored, so it costs no cache call.
 
 ## A handle is hoisted, a client is not
 
@@ -308,10 +310,10 @@ the fewest calls that answer the question**, and a review asks how many each pat
   single-row calls is N round trips for one change.
 - **Read once per execution.** Something every call in a request needs - the caller, a
   configuration row - is read once and kept in the execution extras
-  (`manager.setExtras`).
+  (`manager.setExtras`), the way `UserManagement.currentUser` remembers the caller.
 - **Cache before Catalyst Cache.** A value safe to keep across requests sits in an
   in-process LRU first, so a hit costs no call at all; Catalyst Cache is the fallback
-  shared across instances.
+  shared across instances. `ZohoConnection`'s minted tokens are the worked example.
 
 A path that has to make several calls should say so in a comment, so the next reader
 does not "optimise" a call that is load-bearing.

@@ -1,9 +1,18 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "extends": ["//"],
+  "extends": [
+    "//"
+  ],
   "tasks": {
     "bundle": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "dev": {
+      "passThroughEnv": [
+        "TZ"
+      ]
     }
   }
 }

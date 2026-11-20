@@ -4,10 +4,9 @@ Reverse proxy that gives local development a single origin. Runs as the Catalyst
 AppSail named `proxy`, and is the only service the browser talks to directly.
 
 **This app is never deployed.** It exists for local development only. The cloud has no
-equivalent: Slate and AppSail are separate origins there, and the web app calls the API
-cross-origin with a bearer token (see the root `.claude/CLAUDE.md`). It is declared in
-`catalyst.json` so `catalyst serve` can run it; `pnpm deploy` ships only `appsail:api`
-and `slate:web`. Do not add it to the deploy list.
+equivalent: there the web app reads and writes on its own server (see the root
+`.claude/CLAUDE.md`). It is declared in `catalyst.json` so `catalyst serve` can run it;
+`pnpm run deploy` ships only `slate:web`. Do not add it to the deploy list.
 
 Port: `X_ZOHO_CATALYST_LISTEN_PORT` when the CLI injects it (4600 in practice), else
 **3000** as a standalone fallback. Under `catalyst serve` the CLI fronts it on a
@@ -16,26 +15,23 @@ the entry point, not 3000.
 
 ## Routing
 
-`src/index.ts` registers two `http-proxy-middleware` instances, in order:
+`src/index.ts` registers one `http-proxy-middleware` instance, `webProxy`, which sends every
+path to `http://localhost:4000` - `apps/web` (Next.js). It sets `changeOrigin: true` and
+`ws: true` for HMR, and the `server.on("upgrade")` handler hands every WebSocket upgrade to
+it. There is no path rewriting.
 
-| Path | Upstream | Serves |
-|------|----------|--------|
-| `/api` | `http://localhost:8000` | `apps/api` (Express) |
-| everything else | `http://localhost:4000` | `apps/web` (Next.js) |
-
-Both set `changeOrigin: true`. The catch-all has `ws: true` for HMR. WebSocket
-upgrades are dispatched in the `server.on("upgrade")` handler using the same
-`/api` prefix test, so `/api` upgrades reach the API and all others reach Next.js.
-
-There is no path rewriting - `/api/foo` arrives at the API as `/api/foo`, which is
-what `apps/api` mounts its middleware on.
+An app added later that serves HTTP - an API app, a function's dev server - gets its own
+instance for its prefix, registered before `webProxy`, which takes every other path.
+`.claude/rules/general/routing.md` shows it.
 
 ## Auth
 
-`app-config.json` sets `catalyst_auth: true` with `login_redirect: "/"`. Locally, login
-is enforced here. `apps/api` does not set it: locally it is reached only through this
-proxy, and in the cloud each of its routes guards itself with
-`initCatalystScopes([CatalystScope.User])`.
+`app-config.json` sets `catalyst_auth: true` with `login_redirect: "/"`. It gates no page:
+`catalyst serve` reads it to pass Catalyst's own sign-in paths (`/accounts`, `/oauthorize`)
+and the web SDK's requests through to Catalyst, and to send a signed-in browser to `/`. The
+sign-in widget and sign-out need that locally, so keep it. Who sees which page is the web
+app's own `src/proxy.ts`, and each page, action or route guards its data by naming the scopes
+it reads.
 
 ## Running
 
@@ -43,7 +39,7 @@ There is no `dev` script - the proxy runs from bundled output through the Cataly
 From the repo root:
 
 ```bash
-pnpm dev      # everything: this proxy via catalyst serve, plus api, web, watchers
+pnpm dev      # everything: this proxy via catalyst serve, plus web and the package watchers
 pnpm serve    # this proxy alone
 ```
 
@@ -53,11 +49,16 @@ process manager's pipe never sends one, so it hangs. The front port still binds,
 every request 502s and it looks like a proxy fault. Do not drop that redirect.
 Running `pnpm serve` yourself is unaffected: a terminal takes the interactive path.
 
+At startup it prints the five keys the Catalyst SDK reads, which `catalyst serve` set for it
+from the project you signed in to, ready to paste into `apps/web/.env` - README "3. Fill in
+the environment". They are URLs and a suffix, never a credential; print nothing else from
+the environment.
+
 Because it serves the bundle, **edits to `src/` require a re-bundle** to take effect.
 
-Running `node appsails/proxy/index.js` by hand works for the frontend but breaks the
-API: the Catalyst SDK parses project details off request headers, and only
-`catalyst serve` injects them. Every `/api` call 500s with `app/invalid_project_details`.
+Running `node appsails/proxy/index.js` by hand serves the pages but breaks every Catalyst
+read: the Catalyst SDK parses project details off request headers, and only
+`catalyst serve` injects them, so each fails with `app/invalid_project_details`.
 
 ## Build output
 

@@ -7,7 +7,7 @@ description: Add a Catalyst Signal (Event) function to this repo - the workspace
 
 One Signal function handles every event a Signals rule delivers to it. It routes each
 event to a handler by the event's `api_name`. What goes inside it is described in
-`.claude/rules/catalyst/signal-function.md`; this skill creates it.
+`.claude/rules/node-event/signal-function.md`; this skill creates it.
 
 1. **Agree it with the user.** It is a new deployable. Settle its name, the publisher, and
    the events it handles first.
@@ -20,8 +20,8 @@ event to a handler by the event's `api_name`. What goes inside it is described i
    - Each event gets one class in `src/signals/<event-name>.ts`, holding its `apiName`.
    - `src/dev-server.ts` serves the local route.
 4. **Set up the dev server:**
-   - Add `packages/routing/src/<name>-path.ts` with the prefix and
-     `EventName: "/:eventName"`.
+   - Add `src/<name>-path.ts` with the prefix and `EventName: "/:eventName"`
+     (`.claude/rules/general/routing.md`).
    - Add a proxy route for the prefix.
    - Add `express` as a `devDependency`.
    - Add a `dev` script that runs `tsx watch` on `src/dev-server.ts`, on a port from 8100

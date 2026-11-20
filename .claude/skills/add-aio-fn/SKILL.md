@@ -1,33 +1,35 @@
 ---
 name: add-aio-fn
-description: Add a Catalyst Advanced I/O function to this repo - an exported Express app with its workspace, catalyst-config.json, bundle, catalyst.json and deploy entries, dev server and proxy route. Use when an HTTP API should deploy apart from apps/api, or when asked to create an Advanced I/O function.
+description: Add a Catalyst Advanced I/O function to this repo - an exported Express app with its workspace, catalyst-config.json, bundle, catalyst.json and deploy entries, dev server and proxy route. Use when an HTTP API should deploy apart from the web app, each request under 30 s, or when asked to create an Advanced I/O function.
 ---
 
 # Add an Advanced I/O function
 
-An Advanced I/O function is an Express app built like `apps/api`. It is exported and
-never listens. What goes inside it is described in
+An Advanced I/O function is an Express app built as `.claude/rules/node-api/express-app.md`
+describes. It is exported and never listens. What differs from any other Express app is in
 `.claude/rules/catalyst/advanced-io-function.md`. This skill creates it.
 
 1. **Agree it with the user.** It is a new deployable, so settle these first:
-   - its name
-   - why it is not a router in `apps/api`
-   - whether the browser calls it
+   - its name, for what it serves (`billing`)
+   - who calls it from outside the web app, and why not an AppSail - "No API app until one
+     is needed" in `.claude/rules/node-api/code-placement.md`
+   - whether the web app calls it
 2. **Read `.claude/skills/deployable-steps.md` and `.claude/skills/function-steps.md`**,
-   then follow them with `--type aio`. Import the middleware, `HttpError` and response
-   builders from `@repo/http-server`.
-3. **Write the app**, following `advanced-io-function.md`:
-   - `src/app.ts` sets the middleware order of `apps/api`'s `app.ts`.
+   then follow them with `--type aio`.
+3. **Write the app**, following `express-app.md` and `advanced-io-function.md`:
+   - `src/middleware.ts`, `src/http-error.ts` and `src/response.ts`, written as "The
+     plumbing" in `express-app.md` describes.
+   - `src/app.ts` sets the middleware order `express-app.md` gives.
    - `src/index.ts` is `module.exports = app`.
    - `src/dev-server.ts` is `app.listen(<port>)`, using a port from 8100 up.
    - `src/routes/` holds the routes.
    - `src/env.ts` holds its own keys.
    - `express` is a runtime `dependency`.
-4. **Add its paths** in `packages/routing/src/<name>-path.ts`. Then add a proxy route for
-   its prefix, and a `dev` script that runs `tsx watch` on `src/dev-server.ts`.
-5. **If the browser calls it**, follow "When the browser calls it" in
-   `deployable-steps.md`. That covers the build-time URL key, the client pair and
-   Authorized Domains.
+4. **Add its paths** in `src/<name>-path.ts` (`.claude/rules/general/routing.md`). Then add
+   a proxy route for its prefix, and a `dev` script that runs `tsx watch` on
+   `src/dev-server.ts`.
+5. **If the web app calls it**, follow "When the web app calls it" in
+   `deployable-steps.md`. That covers its URL key and how the call is authenticated.
 6. **Guard each route** that needs a signed-in caller with
    `initCatalystScopes([CatalystScope.User])`. Its Security Rule starts at `optional`, so
    the URL is public.

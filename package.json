@@ -1,5 +1,5 @@
 {
-  "name": "catalyst-zoho-token-mono-repo",
+  "name": "catalyst-basic-mono-repo",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -12,7 +12,7 @@
     "verify": "turbo run build lint typecheck test:unit test:integration",
     "bundle": "turbo run bundle",
     "serve": "turbo run bundle --filter=proxy && catalyst serve --only appsail:proxy",
-    "deploy": "turbo run bundle && catalyst deploy --only appsail:api,slate:web"
+    "deploy": "turbo run bundle && catalyst deploy --only slate:web"
   },
   "packageManager": "pnpm@10.28.1",
   "license": "ISC",

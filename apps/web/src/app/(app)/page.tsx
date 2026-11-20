@@ -1,16 +1,16 @@
+import { CatalystScope } from "@repo/catalyst-node/catalyst-scope";
+import { UserManagement } from "@repo/catalyst-node/user-management";
 import { SignedInAccount } from "@/components/auth/signed-in-account";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { ZohoConnectionPanel } from "@/components/zoho-token/zoho-connection-panel";
+import { withCatalystPage } from "@/execution-context";
 
-export default function HomePage() {
+export default withCatalystPage([CatalystScope.User], async function HomePage() {
+  const user = await UserManagement.currentUser();
   return (
     <Card className="w-full max-w-md">
-      <CardContent className="space-y-6">
-        <SignedInAccount />
-        <Separator />
-        <ZohoConnectionPanel />
+      <CardContent>
+        <SignedInAccount user={user} />
       </CardContent>
     </Card>
   );
-}
+});

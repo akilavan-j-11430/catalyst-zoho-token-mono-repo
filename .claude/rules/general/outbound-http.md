@@ -1,23 +1,32 @@
 # Outbound HTTP
 
 Every request to a service outside this monorepo goes through `HttpClient`
-(`@repo/node-utils/http/http-client`). No `fetch`, no `axios`, no `node:https`, no other
-client in `apps/api` or `packages/*`. ESLint enforces this; the transports under
-`packages/node-utils/src/http/` are the only exemption.
+(`@repo/http-client/http-client`). No `fetch`, no `axios`, no `node:https`, no other
+client in `packages/*`, a Node app or `apps/web`. `@repo/eslint-config` enforces this
+everywhere - `apps/web`, whose config is built on Next's, through `webImportBan` and its own
+`fetch` ban - and the transports under `packages/http-client/src/` (`*-transport.ts`) are
+the only exemption.
 
 The point is one seam. Transport, auth headers, encoding, timeout, logging and error
 mapping all live in the client, so moving off `fetch` means adding one `HttpTransport`
 implementation - not touching call sites.
+
+Who calls `HttpClient` depends on what the service is to this app. Records it keeps for us -
+the contacts in a CRM - are read and written by a repository in `@repo/repositories`; work we
+ask it to do - create a lead, send an email - goes through a client class in its own
+`packages/<service>`. `repositories.md` has the test.
 
 ## Using it
 
 One instance per external service, built once at module scope:
 
 ```ts
-import { HttpClient } from "@repo/node-utils/http/http-client";
+import { HttpClient } from "@repo/http-client/http-client";
+import { Logger } from "@repo/logger/logger";
 
 const billing = new HttpClient({
   baseUrl: "https://billing.example.com/v2",
+  logger: Logger.for("billing"),
   headers: async () => ({ authorization: `Bearer ${await billingToken()}` }),
 });
 
@@ -32,26 +41,32 @@ const invoice = toInvoice(await body.json());
   The client has no `parse` hook on purpose; a plain function call does the same job.
 - `timeoutMs` on the client is the default; pass it per call for a slow export or a big
   upload rather than loosening it for everything.
-- Each call logs `METHOD url -> status in N ms`. Bodies and headers are never logged, so
-  keep secrets out of the URL.
-- Every call carries `app-execution-id` automatically - see below.
+- Each call logs `METHOD url -> status in N ms` to the `logger` the client was given, which
+  stamps the execution id on the server. A client built without one logs nothing. Bodies
+  and headers are never logged, so keep secrets out of the URL.
+- The client reads nothing ambient, so it runs in Node and in the browser alike. Whatever a
+  call should carry - a token, an execution id - comes in through `headers`, and where its
+  line goes comes in through `logger`: a `Logger` on the server, or `console` in the browser.
+  The client never writes to `console` itself.
 
 ## Request correlation
 
-The client stamps `app-execution-id` on every outbound request, taken from the in-flight
-request's `ExecutionContext`. It is the same id the logger prints as `Execution ID`, so one
-id ties this repo's log lines to the upstream's for a single request. Nothing to pass at
-the call site:
+An outbound call carries `app-execution-id`, the id of the request or run that caused it,
+so one id ties this repo's log lines to the upstream's. The client does not look the id
+up - it has no request context to read, and in the browser there is none. The app that
+owns the request supplies it through the client's `headers` resolver, which runs on
+every call:
 
+```ts
+const billing = new HttpClient({
+  baseUrl: "https://billing.example.com/v2",
+  logger: Logger.for("billing"),
+  headers: () => ({ [HttpHeader.AppExecutionId]: currentContext().manager.executionId }),
+});
 ```
-app-execution-id: 0f3c1a9e-...    <- currentContext().manager.executionId
-```
 
-Outside a request context - a cron, a job, a call at startup - there is no execution to
-attribute it to and the header is simply left off. The client does not throw.
-
-It is merged first, so both the client's `headers` resolver and a per-call `headers` entry
-override it. Pass one explicitly only when an upstream insists on its own correlation id:
+A per-call `headers` entry overrides the resolver, for an upstream that insists on its own
+correlation id:
 
 ```ts
 await billing.get("/invoices/42", {
@@ -80,8 +95,8 @@ When the default is not specific enough, say so with a `content-type` header. Th
 separate option for it - one channel, with both halves named:
 
 ```ts
-import { ContentType } from "@repo/node-utils/enums/content-type";
-import { HttpHeader } from "@repo/node-utils/enums/http-header";
+import { ContentType } from "@repo/http-client/content-type";
+import { HttpHeader } from "@repo/http-client/http-header";
 
 await api.post("/orders", "<order/>", {
   headers: { [HttpHeader.ContentType]: ContentType.Xml },
@@ -127,7 +142,7 @@ still readable.
 ## Failures
 
 Both a non-2xx and an unreachable host reject with `HttpRequestError`
-(`@repo/node-utils/errors/http-request-error`). Everything needed to debug is flat and
+(`@repo/http-client/http-request-error`). Everything needed to debug is flat and
 synchronous - `method`, `url`, `status`, `headers`, `body` - so logging a failure never
 has to await, and its `toString()` prints all of it plus the stack:
 
@@ -142,8 +157,9 @@ Stack
 
 `status` is `undefined` only when nothing came back at all - timeout, DNS, refused.
 
-In `apps/api`, letting it reach `errorHandler` gives a 500, which is the right default for
-an upstream failure. Catch it only to map a specific upstream status onto an `HttpError`:
+In an API app, letting it reach `errorHandler` gives a 500, which is the right default for
+an upstream failure (`node-api/express-app.md`). Catch it only to map a specific upstream
+status onto an `HttpError`:
 
 ```ts
 try {
@@ -159,33 +175,29 @@ try {
 
 ## Adding a transport
 
-`packages/node-utils/src/types/http.ts` is the seam: a transport takes a request whose
+`packages/http-client/src/http-types.ts` is the seam: a transport takes a request whose
 body is already encoded and returns the status, the headers and the raw response bytes.
 It never decides what a status means and never throws for a non-2xx.
 
-Connection pooling, keep-alive, proxying and mTLS are transport concerns, not client
-ones, so they are configured where the transport is built:
+`fetchTransport` is the default, and it is plain fetch, so it works in Node and in the
+browser. On Node, undici's global dispatcher already pools connections and keeps them
+alive.
 
-```ts
-const billing = new HttpClient({
-  baseUrl: "https://billing.example.com/v2",
-  transport: createFetchTransport({ dispatcher: myUndiciAgent }),
-});
-```
+Proxying, mTLS or a tuned pool are transport concerns, not client ones, and they are
+Node-only, so they go in a transport of their own beside `fetch-transport.ts` - fetch with
+an undici `Dispatcher` (not a `node:http` `Agent`, which fetch does not take) - passed as
+`transport:` to the client that needs it.
 
-Note this is an undici `Dispatcher`, not a `node:http` `Agent` - fetch does not take the
-latter. Omit it and undici's global dispatcher already pools connections.
-
-To move to axios, add `packages/node-utils/src/http/axios-transport.ts` beside
+To move to axios, add `packages/http-client/src/axios-transport.ts` beside
 `fetch-transport.ts` and pass `transport: axiosTransport`; its equivalent option would be
 `httpAgent`/`httpsAgent` in the same position. Note axios would be a new runtime
 dependency, which per the root instructions is a decision to bring back to the user - and
-it must be added to `apps/api/package.json` too, since `scripts/bundle.mjs` derives the
-deployed manifest from that file alone.
+it must be added to the deploying app's `package.json` too, since its `scripts/bundle.mjs`
+derives the deployed manifest from that file alone.
 
 ## Not covered by this rule
 
-`apps/web` calls this repo's own API through the proxy. That is not an external request,
-and `apps/web` cannot import `node-utils` anyway - it has its own client in
-`src/services/api/client.ts`, built to this same standard and returning the same
-`HttpResponse` from `@repo/types/http`. `.claude/rules/web/web-data-access.md` is its rule.
+Calls inside this repo. The browser does not call our own API at all: `apps/web` reads in
+its pages and writes through Server Actions, on its own server, and has no API client
+(`.claude/rules/nextjs/code-placement.md`). An outside service that `apps/web` needs is
+reached from that server code through `HttpClient`, like anywhere else.

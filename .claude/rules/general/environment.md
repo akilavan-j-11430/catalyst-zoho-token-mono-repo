@@ -1,25 +1,23 @@
 # Environment variables
 
-`node-utils` owns the mechanism, an app owns its keys. `defineEnv`
-(`@repo/node-utils/utils/env`) is generic and names no variable; each app declares what it
+`@repo/env` owns the mechanism, an app owns its keys. `defineEnv`
+(`@repo/env/define-env`) is generic and names no variable; each app declares what it
 reads in its own `src/env.ts` and exports the handle:
 
 ```ts
-// apps/api/src/env.ts
-import { defineEnv } from "@repo/node-utils/utils/env";
+// apps/web/src/env.ts
+import "server-only";
+import { defineEnv } from "@repo/env/define-env";
 
-type ApiEnv = {
-  /** Where Catalyst sends a new user from the confirmation email. */
-  AUTH_REDIRECT_URL: string;
-  /** Timezone for log timestamps. */
+type WebEnv = {
+  /** Timezone for log timestamps. Falls back to the logger's own default. */
   TZ: string;
-  // ... and one entry per Zoho OAuth key; see the real file for the full list.
 };
 
-export const env = defineEnv<ApiEnv>();
+export const env = defineEnv<WebEnv>();
 ```
 
-Two apps never share a key list, because two AppSails are configured separately. The
+Two apps never share a key list, because two deployables are configured separately. The
 template is the app's whole configuration surface, so what a deploy has to supply is one
 file to read.
 
@@ -29,8 +27,8 @@ an `undefined` at runtime:
 ```ts
 import { env } from "@/env";
 
-env.get("AUTH_REDIRECT_URL");   // string - throws RuntimeError naming it when unset
-env.optional("TZ");             // string | undefined - for a key with a fallback
+env.get("TZ");        // string - throws MissingEnvVariableError naming it when unset
+env.optional("TZ");   // string | undefined - for a key with a fallback
 ```
 
 `get` and `optional` both treat an empty value as unset, so a variable declared but left
@@ -43,8 +41,10 @@ Not `apps/*/app-config.json`, not `catalyst.json`, not
 
 `app-config.json` is committed, so a value written there is a value committed to the
 repository. `.env` is gitignored and is the only place a value lives; `.env.example` is
-committed and carries the key with a comment and no value. The root pair holds what every
-app shares; an app's own keys go in `apps/<app>/.env` and `apps/<app>/.env.example`.
+committed and carries the key with a comment and no value. Each deployable has its own pair,
+`apps/<app>/.env` and `apps/<app>/.env.example`, and there is no shared root one: two
+deployables are configured on two Console screens, so a value they both need is written in
+both.
 
 This costs something at deploy time and the cost is worth knowing. For an app linked in
 `catalyst.json`, `env_variables` in `app-config.json` is what the AppSail runtime applies
@@ -59,24 +59,31 @@ A package under `packages/` has no keys of its own and no `src/env.ts`. It takes
 needs as a parameter, so the app that owns the variable is the one that reads it:
 
 ```ts
-// packages/node-utils/src/catalyst/user-management.ts
-static async register(user: NewUser, redirectUrl: string): Promise<RegisteredUser>
+// packages/catalyst-node/src/user-management.ts
+static async register(registration: {
+  user: NewUser;
+  redirectUrl: string;
+}): Promise<RegisteredUser>
 
-// apps/api/src/routes/auth.ts
-await UserManagement.register(user, env.get("AUTH_REDIRECT_URL"));
+// apps/web/src/app/(auth)/sign-up/register-user.ts
+const registered = await UserManagement.register({
+  user,
+  redirectUrl: await redirectUrl(),
+});
 ```
 
-It is the same rule as `.claude/rules/general/catalyst-sdk.md` - a wrapper takes and returns plain
-values - and it is what makes the failure land in the route, which is what the variable
-configures.
+Sign-up's redirect is not a key: the Server Action takes it from the request's own origin.
+Were it one, the action would read it through its own `env`. It is the same rule as
+`.claude/rules/general/catalyst-sdk.md` - a wrapper takes and returns plain values - and it is
+what makes the failure land in the caller, which is what the variable configures.
 
-`logger` is the same shape from the other side: it holds the timezone in a module-level
-static and exposes `setLogTimeZone`, which the app calls once at startup with its own
-`env.optional("TZ")`. The package formats; the app configures.
+`Logger` is the same shape from the other side: it holds the timezone in a static and
+takes it through `Logger.configure({ timeZone })`, which the app calls once at startup with
+its own `env.optional("TZ")`. The package formats; the app configures.
 
 ## Adding a variable
 
-Four steps, in order, and a fifth for a key read at module scope:
+Four steps, in order:
 
 1. The key on the app's template in `apps/<app>/src/env.ts`, with a comment saying what it
    is for.
@@ -84,63 +91,72 @@ Four steps, in order, and a fifth for a key read at module scope:
    in the shell survives turbo's strict env mode.
 3. An entry in `apps/<app>/.env.example` - committed, commented, no value.
 4. The local value in `apps/<app>/.env` - gitignored.
-5. A test value in `test.env` of `apps/<app>/vitest.config.mts`, as for the Zoho client
-   keys `zoho-connections.ts` reads. Tests never see `.env`, so without it every test that
-   imports the app fails at load. A key read per request is stubbed by the test that needs
-   it instead - see `.claude/rules/general/testing.md`.
 
 Then set it in the Catalyst Console before the next deploy that needs it.
 
 ## The platform-injected reads
 
-Catalyst injects these itself and they are read at module scope, before any app template
-exists. They stay as they are:
+The platform injects these itself - Catalyst, or Next for `NEXT_RUNTIME` - and they are
+read before any app template is in play. They stay as they are:
 
-- `apps/api/src/index.ts` - `X_ZOHO_CATALYST_LISTEN_PORT`, `PORT`
-- `apps/api/src/framework/catalyst-logger.ts` - `X_ZOHO_SPARKLET_LOG_FD`
-- `apps/proxy/src/index.ts` - `X_ZOHO_CATALYST_LISTEN_PORT`
+- an AppSail's `src/index.ts` - `X_ZOHO_CATALYST_LISTEN_PORT`, `PORT`, the port to listen on
+- `packages/logger/src/catalyst-log-output.ts` - `X_ZOHO_SPARKLET_LOG_FD`, the log collector
+  Catalyst hands a running app. The one read inside a package: no app configures it, and the
+  class that writes SparkP packets to it is the only code that knows what it means.
+- `apps/proxy/src/index.ts` - `X_ZOHO_CATALYST_LISTEN_PORT`, and the five SDK keys below, which
+  it only prints
 
 They are not configuration this repo owns, so they do not belong on a template. `apps/proxy`
 has no `src/env.ts` for exactly that reason.
 
-Nothing Catalyst-related belongs in the environment at all. Project details and the
-caller's credentials ride on request headers, because `zcAuth.init(req)` is per request.
+The project's details and the caller's credentials never go in the environment: they ride
+on request headers, because `zcAuth.init(req)` is per request.
 
-## `apps/web` reads one key per backend it calls
+## The keys the Catalyst SDK reads
 
-`apps/web` reads one variable for each backend the browser calls - an AppSail or an
-Advanced I/O function. Today that is only `NEXT_PUBLIC_API_URL`, for `api`, and anything
-else the browser needs comes from a backend. It is the one value the browser needs before
-it can reach that backend at all: in the cloud Slate and each backend are separate origins,
-so a deployed build is told where each one lives.
+The SDK reads five keys of its own when it loads: `X_ZOHO_CATALYST_IS_LOCAL`,
+`X_ZOHO_CATALYST_ACCOUNTS_URL`, `X_ZOHO_CATALYST_CONSOLE_URL`, `CATALYST_PORTAL_DOMAIN` and
+`X_ZOHO_STRATUS_RESOURCE_SUFFIX`.
 
-- Read once, as a literal `process.env.NEXT_PUBLIC_<NAME>_URL`, in
-  `src/services/api/client.ts`, beside that backend's clients. Next inlines it at
-  `next build` and inlines nothing it cannot see written out, so there is no template or
-  `defineEnv` here - that is `node-utils`, which the browser cannot import.
-- Set in **Console -> Slate -> web -> Environment Variables**, and left unset locally, where
-  calls stay relative and go through `apps/proxy`. `apps/web/.env.example` documents it.
-- `scripts/bundle.mjs` never stages a `.env*` file, so a local value cannot ship.
-- No `turbo.json` entry: turbo's Next.js inference already puts `NEXT_PUBLIC_*` in the
-  `build` cache key.
+- **Not on a template.** No app code reads them, so they are not keys on `src/env.ts`; they
+  go in the app's `.env.example`, with a comment, like any other key.
+- **Their values come from `catalyst serve`**, which works them out from the project and data
+  centre you signed in to and sets them for the one AppSail it runs, the proxy. The proxy
+  prints them at startup, ready to paste; README "3. Fill in the environment" says how.
+- **Anything turbo starts gets none** - the web app, an AppSail's or a function's dev
+  server - so its `.env.example` lists all five and its `.env` holds the pasted values, all
+  five even for the US: with `IS_LOCAL=true` the Stratus SDK reads `CATALYST_PORTAL_DOMAIN`
+  with no US default.
+- **Deployed, `IS_LOCAL` is never set.** The other four are set in the Console, until the
+  first Slate deploy shows whether Slate sets them itself.
 
-Add a key only for a new backend the browser calls - `.claude/skills/deployable-steps.md` has the steps. A
-value the browser needs once it can reach a backend is that backend's to serve.
+## `apps/web` reads its keys on the server
+
+`apps/web`'s template, `src/env.ts`, is the one above: today only `TZ`. It imports
+`server-only`, so only server code - a page, a Server Action, `server-logging.ts` - reads
+it, through `env`, never `process.env`. The four steps above apply unchanged, with
+`apps/web/turbo.json` passing the key through for `dev`.
+
+- **The browser reads none.** There is no `NEXT_PUBLIC_*` key today: pages read and actions
+  write on the server, so the browser needs no backend URL. A `NEXT_PUBLIC_*` value is
+  inlined into the browser bundle at `next build`, so it would be public, and changing it
+  would need a rebuild - add one only when the browser itself must know a value.
+- Set the deployed values in **Console -> Slate -> web -> Environment Variables**.
+  `scripts/bundle.mjs` never stages a `.env*` file, so a local value cannot ship.
 
 ## Not covered by this rule
 
 `turbo.json`'s `globalPassThroughEnv` forwards variables to local tasks and keeps them out
 of the cache key. It configures the build, not the runtime, and declaring a key there is
-not declaring it to an app. It lists the platform values the Catalyst CLI and SDK read,
-not this repo's own keys, which reach `apps/api` because its `dev` script loads `.env`
-directly through `tsx --env-file-if-exists`.
+not declaring it to an app. It lists the SDK's keys above, so a value exported in the shell
+still reaches every task, but an app normally gets them, like its own keys, by loading its
+own `.env` - Next does for `apps/web`, and a Node app's `dev` script passes it to
+`tsx --env-file-if-exists=.env`.
 
 An app may carry its own `turbo.json` with `extends: ["//"]`, but a **global key is
 root-only**: turbo 2.11 rejects `globalPassThroughEnv` there with `Found an unknown key`.
 The per-app equivalent is task-level `passThroughEnv`, which is accepted and merges over
-the inherited task definition. `apps/api/turbo.json` is that file: its `dev` task passes
+the inherited task definition. `apps/web/turbo.json` is that file: its `dev` task passes
 through every key on the `src/env.ts` template and nothing else. The platform-injected
 reads above are set only when Catalyst runs the app, never under turbo, so they have no
-place there.
-`apps/web` needs none for its one key (above), and `apps/proxy` has no turbo task that
-runs it, so neither has one.
+place there. `apps/proxy` has no turbo task that runs it, so it has none.

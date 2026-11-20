@@ -32,8 +32,8 @@ comment.
 
 A system design names its patterns the same way - publish/subscribe, cache-aside,
 write-through, idempotent consumer, backpressure, retry with backoff - and states in those
-terms how it handles consistency, failure and recovery. `docs/architecture.md` is where
-that goes.
+terms how it handles consistency, failure and recovery. That goes in
+`docs/architecture.md`, which the first system design creates.
 
 ## A pattern still has to earn its place
 
@@ -45,10 +45,10 @@ says what the shape should be.
 
 ## No callback parameters in server code
 
-In `apps/api` and `packages/node-utils`, a method does its work in its own body. Do not
-write a helper that takes a callback (`cb`, `fn`, `call: () => Promise<T>`) just to wrap
-`try/catch`, logging or a cast around it - write the `try/catch` inline in each method, as
-`bucket.ts` does. A helper takes values and returns values.
+In `packages/async-context`, `packages/logger`, `packages/catalyst-node` and any Node app, a
+method does its work in its own body. Do not write a helper that takes a callback (`cb`,
+`fn`, `call: () => Promise<T>`) just to wrap `try/catch`, logging or a cast around it - write
+the `try/catch` inline in each method, as `bucket.ts` does. A helper takes values and returns values.
 
 ```ts
 // not this
@@ -68,9 +68,7 @@ async insertRow(row: Row): Promise<StoredRow<Row>> {
 ```
 
 The exception is an API that itself takes a callback - `AsyncLocalStorage.run`, Express
-middleware, `Array.map`/`filter` - and `PLimit`/`PLimitPerKey` (`node-utils/src/utils/`),
-whose whole job is to decide when a task runs. The per-user lock in `ZohoConnection` is
-that case, not a wrapper to inline.
+middleware, `Array.map`/`filter`.
 
 Events follow the same split. Consuming a Node event is allowed, but prefer the awaitable
 form where Node has one:
@@ -83,9 +81,8 @@ form where Node has one:
 | a one-shot event you wait for | `await once(emitter, "ready")` from `node:events` |
 
 Keep a listener only when the code must not wait for the event - logging after a response,
-cleanup on a client disconnect, a handler that fires many times. `res.on("finish")` in
-`packages/http-server/src/middleware.ts` and `server.on("upgrade")` in `apps/proxy/src/index.ts` are
-that case.
+cleanup on a client disconnect, a handler that fires many times. `server.on("upgrade")` in
+`apps/proxy/src/index.ts` is that case.
 
 Naming and simplicity are covered in `readable-code.md`.
 

@@ -1,7 +1,7 @@
 {
   "name": "@repo/case-conversion",
   "version": "1.0.0",
-  "description": "Converts vendor key casing to camelCase, shared by node-utils and apps/web.",
+  "description": "Converts vendor key casing to camelCase, shared by catalyst-node and apps/web.",
   "main": "index.js",
   "type": "module",
   "private": true,

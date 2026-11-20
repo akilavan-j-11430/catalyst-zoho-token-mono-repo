@@ -6,14 +6,14 @@ does the job.
 ## camelCase only
 
 Every identifier and every key this repo defines is camelCase - `emailId`, `nextPageToken`,
-`createdTime`. That includes the JSON `apps/api` sends and `apps/web` reads.
+`createdTime`. That includes the JSON a `route.ts` or an API app sends.
 
 When something outside the repo answers in another case - Catalyst's `email_id`, a vendor's
 `Next-Page-Token`, a table's `CREATEDTIME` - convert it to camelCase at the first point it
 enters our code, and use only the converted value from there on:
 
 ```ts
-// packages/node-utils/src/catalyst/user-management.ts
+// packages/catalyst-node/src/user-management.ts
 function toRegisteredUser(details: RegisteredUserDetails): RegisteredUser {
   const { userId, emailId, firstName, lastName, isConfirmed } = CamelCase.convertKeys(details);
   return { userId, emailId, firstName, lastName, isConfirmed };
@@ -29,16 +29,17 @@ function toRegisteredUser(details: RegisteredUserDetails): RegisteredUser {
   It cannot split a word with no separator - `CREATEDTIME` becomes `createdtime` - so
   Catalyst table rows are mapped field by field in their repository instead.
 - ESLint enforces it (`@typescript-eslint/naming-convention`, from `@repo/eslint-config`).
-  The vendor seams are exempt through `allowVendorNames(files)` - `catalyst/`,
-  `repositories/` and `services/zoho/accounts.ts` in `node-utils`, plus `apps/api`'s `env.ts`
-  and `catalyst-logger.ts` - and so are three tests whose inputs are vendor-cased:
-  `case-conversion`'s `camel-case.test.ts`, and `node-utils`' `env.test.ts` and
-  `user-management.test.ts`. `apps/web` builds on Next's config instead and leaves
-  `src/catalyst/` out of the rule's `files` with `ignores`. A key that needs quotes
+  The vendor seams are exempt through `allowVendorNames(files)` - all of `catalyst-node`'s
+  `src/`, the package that wraps Catalyst, plus `logger`'s `catalyst-log-output.ts` - and so
+  are six tests whose inputs are vendor-cased: `case-conversion`'s `camel-case.test.ts`,
+  `env`'s `define-env.test.ts`, `catalyst-node`'s `user-management.test.ts`, `table.test.ts`
+  and `job.test.ts`, and `logger`'s `catalyst-log-output.test.ts`. `apps/web` builds on Next's config instead and leaves
+  `src/catalyst/` and `src/env.ts` out of the rule's `files` with `ignores`, along with the
+  vendored shadcn primitives in `src/components/ui/`. A key that needs quotes
   (`"content-type"`, `"--width"`) is a wire string and is never checked. Add a file to the
   exemption only when it is a seam, or a test whose input is the vendor's casing - the
   converter's fixtures, an environment variable name - and then name the one file, never a
-  folder. A fake vendor response is written as a JSON string, so it needs none.
+  folder.
 - For an external HTTP call that function is the `toX(await body.json())` at the call site
   - see `outbound-http.md`.
 - For a Catalyst table, the `Row` type in `resources.ts` keeps the column names as Catalyst

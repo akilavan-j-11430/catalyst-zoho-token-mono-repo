@@ -27,12 +27,14 @@ const INITIAL_HEIGHT = 320;
  * renders rather than to a height guessed per step. Whatever a step needs, the
  * container grows to it and nothing inside is cut off.
  *
- * It measures `.signin_container`, IAM's own content box, not the document: the
- * document element stretches to the frame, so it only reports growth once content
- * has already overflowed. The container is content-sized at every step.
+ * It measures `.signin_container`, IAM's own content box, and never the document:
+ * the document element stretches to the frame, so measuring it adds the allowance
+ * to the frame's own height on every resize and the frame grows without end. The
+ * container is content-sized at every step.
  *
  * It has to re-attach on every `load`: `signIn` resolves the moment the iframe is
- * created, when `contentDocument` is still the blank document the browser gives it.
+ * created, when `contentDocument` is still the blank document the browser gives it,
+ * which has no container - the frame keeps its height until IAM's page arrives.
  */
 function observeContentHeight(onHeight: (height: number) => void): () => void {
   const frame = document.getElementById(IFRAME_ID);
@@ -41,12 +43,10 @@ function observeContentHeight(onHeight: (height: number) => void): () => void {
   }
   let observer: ResizeObserver | null = null;
   const attach = (): void => {
-    const page = frame.contentDocument;
-    if (page === null) {
+    const content = frame.contentDocument?.querySelector(".signin_container");
+    if (content === null || content === undefined) {
       return;
     }
-    const content =
-      page.querySelector(".signin_container") ?? page.documentElement;
     observer?.disconnect();
     // The allowance keeps a focus ring or a floated action off the bottom edge.
     observer = new ResizeObserver(() =>

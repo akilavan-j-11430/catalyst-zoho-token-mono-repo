@@ -14,7 +14,6 @@ dist
 
 # Catalyst
 .catalystrc
-catalyst.json
 # Staged by each scripts/bundle.mjs, at the repo root only
 /appsails/
 /slate/

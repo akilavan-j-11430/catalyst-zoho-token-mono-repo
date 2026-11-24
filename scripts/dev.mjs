@@ -14,15 +14,15 @@ const WAIT_LIMIT_MS = 120_000;
 
 let apps;
 
-// Both are gitignored, so a fresh clone has neither, and catalyst serve cannot start without
-// them.
-for (const catalystFile of [".catalystrc", "catalyst.json"]) {
-  if (!existsSync(catalystFile)) {
-    console.error(
-      `${catalystFile} is missing from the repo root - README "First run" says how to create it.`,
-    );
-    process.exit(1);
-  }
+// catalyst serve cannot start without either. .catalystrc is gitignored and per-developer, so
+// a fresh clone has none until `catalyst init`; catalyst.json is committed.
+if (!existsSync(".catalystrc")) {
+  console.error(`.catalystrc is missing from the repo root - run "catalyst init" first.`);
+  process.exit(1);
+}
+if (!existsSync("catalyst.json")) {
+  console.error(`catalyst.json is missing from the repo root - restore it with "git checkout catalyst.json".`);
+  process.exit(1);
 }
 
 /** The common env from one port, or undefined when nothing there is our proxy yet. The

@@ -385,10 +385,9 @@ exception to all of this - see `.claude/rules/general/testing.md`.
   reads, and one that needs a signed-in caller names User. Admin scope proves nothing about
   the caller: the gateway grants it to anonymous requests too, so an Admin-only route is
   public.
-- `catalyst.json` declares the deployables and `.catalystrc` binds the project; both are
-  gitignored and per-developer. `.catalystrc` comes from `catalyst init`; `catalyst.json` is
-  written by hand from the block under "First run" in `README.md`, which is the copy kept in
-  git - a new deployable adds its entry there too.
+- `catalyst.json` declares the deployables and is committed - it names no project, so it is
+  the same for every developer. `.catalystrc` binds the project; it comes from
+  `catalyst init` and is gitignored and per-developer.
 - An AppSail or function bundle is built with esbuild and strips `@repo/*` from the deployed
   manifest, so shared-package code is **inlined at bundle time**. Anything a package needs to
   resolve at runtime will work under `tsx watch` and fail once deployed.

@@ -1,0 +1,4 @@
+{
+  "appsail": [{ "source": "appsails/proxy", "name": "proxy" }],
+  "slate": [{ "name": "web", "source": "slate/web" }]
+}

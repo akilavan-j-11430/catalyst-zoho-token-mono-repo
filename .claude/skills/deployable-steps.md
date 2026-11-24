@@ -11,8 +11,7 @@ built (root `CLAUDE.md`).
 Every deployable follows the same chain. Its source lives in a workspace, and
 `scripts/bundle.mjs` stages a copy ready to deploy in a gitignored folder at the repo
 root. `catalyst.json` points Catalyst at that folder, and the root `deploy` script names
-it. `catalyst.json` is gitignored, so its entry also goes in the block under "First run" in
-`README.md`, the copy in git that every clone writes its own from.
+it.
 
 | | AppSail | Function | Slate app |
 |---|---|---|---|

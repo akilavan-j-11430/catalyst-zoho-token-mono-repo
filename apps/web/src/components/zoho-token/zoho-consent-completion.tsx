@@ -1,27 +1,26 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import type { ZohoGrantCode } from "@repo/types/zoho-token";
+import {
+  completeZohoConsent,
+  type ZohoGrantCode,
+} from "@/app/(app)/zoho-token/callback/complete-zoho-consent";
 import { Loader } from "@/components/shared/loader";
-import { ZohoTokenService } from "@/services/zoho-token";
+import { WebPath } from "@/web-path";
+
+const RETRY_MESSAGE = "Zoho consent did not complete. Connect again to retry.";
 
 /**
- * Posts what Zoho sent back to the api, then goes home either way - a failure is toasted by
- * the query client. `grant` is null when Zoho sent no code, as it does when consent is denied.
+ * Hands what Zoho sent back to `completeZohoConsent`, then goes home either way. `grant` is
+ * null when Zoho sent no code, as it does when consent is denied.
  */
 export function ZohoConsentCompletion({ grant }: { grant: ZohoGrantCode | null }) {
   const router = useRouter();
   // A grant code is single-use at Zoho. React's development double-run of effects would
-  // post it twice and toast the second, rejected exchange, so it is sent once per mount.
+  // send it twice and toast the second, rejected exchange, so it is sent once per mount.
   const isSent = useRef(false);
-  const { mutate } = useMutation({
-    mutationFn: (sentGrant: ZohoGrantCode) => ZohoTokenService.completeConsent(sentGrant),
-    onSuccess: () => toast.success("Zoho connected."),
-    onSettled: () => router.replace("/"),
-  });
 
   useEffect(() => {
     if (isSent.current) {
@@ -29,12 +28,24 @@ export function ZohoConsentCompletion({ grant }: { grant: ZohoGrantCode | null }
     }
     isSent.current = true;
     if (grant === null) {
-      toast.error("Zoho consent did not complete. Connect again to retry.");
-      router.replace("/");
+      toast.error(RETRY_MESSAGE);
+      router.replace(WebPath.Home);
       return;
     }
-    mutate(grant);
-  }, [grant, mutate, router]);
+    void (async () => {
+      try {
+        const result = await completeZohoConsent(grant);
+        if (result.ok) {
+          toast.success("Zoho connected.");
+        } else {
+          toast.error(result.problem);
+        }
+      } catch {
+        toast.error("Zoho could not be connected. Please try again.");
+      }
+      router.replace(WebPath.Home);
+    })();
+  }, [grant, router]);
 
   return <Loader label="Connecting your Zoho account" />;
 }

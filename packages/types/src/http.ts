@@ -1,8 +1,6 @@
 /**
- * The shape of an HTTP response in this repo, shared by `apps/api`'s outbound
- * `HttpClient` and `apps/web`'s API client so a caller reads the same result on either
- * side. What differs between them - transports, dispatchers, execution ids - stays in
- * the package that needs it.
+ * The shape of an HTTP response in this repo, as `HttpClient` (`@repo/http-client`)
+ * returns it. What a transport adds - dispatchers, execution ids - stays in that package.
  *
  * Written as a frozen object rather than a TS `enum`: an enum emits runtime code, which
  * Node's strip-only type support rejects outright.

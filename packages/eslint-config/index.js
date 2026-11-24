@@ -3,9 +3,9 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 const USE_HTTP_CLIENT =
-  "Use HttpClient from @repo/node-utils/http/http-client. See .claude/rules/general/outbound-http.md.";
+  "Use HttpClient from @repo/http-client/http-client. See .claude/rules/general/outbound-http.md.";
 const USE_CATALYST_PACKAGE =
-  "Call Catalyst through @repo/node-utils/catalyst/*. See .claude/rules/general/catalyst-sdk.md.";
+  "Call Catalyst through @repo/catalyst-node/*. See .claude/rules/general/catalyst-sdk.md.";
 
 // Exact specifiers, not patterns: a "http" pattern is glob-matched and would also
 // reject every import under an http/ directory.
@@ -114,7 +114,7 @@ export function allowVendorNames(files) {
  * clients and the test tooling stay banned.
  *
  * Each workspace applies this itself because ESLint resolves `files` against the config
- * that declares them - a repo-root glob like `packages/node-utils/**` never matches the
+ * that declares them - a repo-root glob like `packages/catalyst-node/**` never matches the
  * `src/...` paths a workspace-local run actually sees.
  */
 export function allowCatalystSdk(files) {
@@ -172,15 +172,11 @@ export function allowTestsIn(kinds) {
   };
 }
 
-/** The test-tooling import ban on its own, for apps/web, whose config is built on Next's. */
-export const testToolingBan = {
+/** Every import ban - the Catalyst SDK, the HTTP clients, the test tooling - for apps/web,
+ *  whose config is built on Next's. Its Catalyst seam re-allows the SDK with allowCatalystSdk. */
+export const webImportBan = {
   files: ["src/**/*.{ts,tsx,mts,cts}"],
-  rules: {
-    "no-restricted-imports": [
-      "error",
-      { paths: testToolingImports, patterns: testToolingPatterns },
-    ],
-  },
+  rules: { "no-restricted-imports": restrictedImports() },
 };
 
 export default tseslint.config(
@@ -201,6 +197,12 @@ export default tseslint.config(
         "error",
         { name: "fetch", message: USE_HTTP_CLIENT },
       ],
+      // The global ban sees only a bare `fetch`, not one read off the global object.
+      "no-restricted-properties": [
+        "error",
+        { object: "globalThis", property: "fetch", message: USE_HTTP_CLIENT },
+        { object: "window", property: "fetch", message: USE_HTTP_CLIENT },
+      ],
       "no-restricted-imports": restrictedImports(),
       "@typescript-eslint/naming-convention": camelCaseNaming,
     },
@@ -208,9 +210,10 @@ export default tseslint.config(
   {
     // The transports are the seam HttpClient sits on, so they use the real thing - fetch, an
     // undici dispatcher, or a client like axios in a new transport.
-    files: ["**/http/*-transport.ts"],
+    files: ["**/*-transport.ts"],
     rules: {
       "no-restricted-globals": "off",
+      "no-restricted-properties": "off",
       "no-restricted-imports": restrictedImports({ allowHttpClients: true }),
     },
   },

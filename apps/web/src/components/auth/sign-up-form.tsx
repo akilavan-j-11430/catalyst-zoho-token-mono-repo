@@ -1,15 +1,15 @@
 "use client";
 
+import { useTransition } from "react";
 import {
   useForm,
   type FieldErrors,
   type Resolver,
   type ResolverResult,
 } from "react-hook-form";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { NewUser, RegisteredUser } from "@repo/types/user";
-import { AuthService } from "@/services/auth";
+import type { NewUser } from "@repo/types/user";
+import { registerUser } from "@/app/(auth)/sign-up/register-user";
 import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/shared/loader";
@@ -24,8 +24,8 @@ function invalid(message: string): { type: string; message: string } {
 }
 
 /**
- * These rules are for the person typing. `apps/api` validates the same request again and
- * is the one that decides - a browser can always be skipped.
+ * These rules are for the person typing. `registerUser` validates the same input again on the
+ * server and is the one that decides - a browser can always be skipped.
  */
 const resolveSignUp: Resolver<NewUser> = (
   values,
@@ -61,19 +61,33 @@ export function SignUpForm() {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<NewUser>({ resolver: resolveSignUp, defaultValues: EMPTY });
+  const [isPending, startTransition] = useTransition();
 
-  // Failures surface as a toast from the query client, so there is nothing to catch here.
-  const { mutate, isPending } = useMutation({
-    mutationFn: (user: NewUser) => AuthService.registerUser(user),
-    onSuccess: (registered: RegisteredUser) => {
-      toast.success("Check your email", {
-        description: `We sent a confirmation link to ${registered.emailId}. Open it to set your password and finish signing up.`,
-      });
-      reset(EMPTY);
-    },
-  });
+  function submit(user: NewUser): void {
+    startTransition(async () => {
+      try {
+        const result = await registerUser(user);
+        if (!result.ok) {
+          // The server's own check, on a field the browser's rules let through.
+          if (result.field in EMPTY) {
+            setError(result.field as keyof NewUser, { message: result.problem });
+          } else {
+            toast.error(result.problem);
+          }
+          return;
+        }
+        toast.success("Check your email", {
+          description: `We sent a confirmation link to ${result.registered.emailId}. Open it to set your password and finish signing up.`,
+        });
+        reset(EMPTY);
+      } catch {
+        toast.error("Your account could not be created. Please try again.");
+      }
+    });
+  }
 
   if (isPending) {
     return <Loader label="Creating your account" />;
@@ -81,7 +95,7 @@ export function SignUpForm() {
 
   return (
     <form
-      onSubmit={handleSubmit((user) => mutate(user))}
+      onSubmit={handleSubmit(submit)}
       noValidate
       autoComplete="off"
     >

@@ -1,13 +1,23 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRight, CircleCheck, CircleDashed, PlugZap, Unplug } from "lucide-react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { connectZoho } from "@/app/(app)/connect-zoho";
+import { disconnectZoho } from "@/app/(app)/disconnect-zoho";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ZohoTokenService } from "@/services/zoho-token";
-
-const STATUS_KEY = ["zohoToken", "status"];
 
 function ConnectionStatus({ connected }: { connected: boolean }) {
   return connected ? (
@@ -23,60 +33,113 @@ function ConnectionStatus({ connected }: { connected: boolean }) {
   );
 }
 
-export function ZohoConnectionPanel() {
-  const queryClient = useQueryClient();
-  const { data } = useQuery({
-    queryKey: STATUS_KEY,
-    queryFn: () => ZohoTokenService.fetchStatus(),
-  });
-  const disconnect = useMutation({
-    mutationFn: () => ZohoTokenService.disconnect(),
-    onSuccess: (status) => {
-      queryClient.setQueryData(STATUS_KEY, status);
-      toast.success("Zoho disconnected.");
-    },
-  });
-  // Zoho sends the browser back to the /zoho-token/callback page, which finishes the job.
-  const connect = useMutation({
-    mutationFn: () => ZohoTokenService.fetchConsentUrl(),
-    onSuccess: (consentUrl) => window.location.assign(consentUrl),
-  });
-  // Still disabled once it succeeds, while the browser leaves for Zoho.
-  const isLeavingForZoho = connect.isPending || connect.isSuccess;
+function ConnectButton() {
+  const [isPending, startTransition] = useTransition();
+  // Stays set once the consent url arrives, so the button stays disabled while the browser
+  // leaves for Zoho, which then sends it back to the /zoho-token/callback page.
+  const [isLeavingForZoho, setIsLeavingForZoho] = useState(false);
 
-  if (data === undefined) {
-    return <Spinner aria-label="Checking your Zoho connection" className="mx-auto" />;
+  function connect(): void {
+    startTransition(async () => {
+      try {
+        const result = await connectZoho();
+        if (!result.ok) {
+          toast.error(result.problem);
+          return;
+        }
+        setIsLeavingForZoho(true);
+        window.location.assign(result.consentUrl);
+      } catch {
+        toast.error("Zoho could not be reached. Please try again.");
+      }
+    });
   }
 
+  const isBusy = isPending || isLeavingForZoho;
+  return (
+    <Button disabled={isBusy} onClick={connect}>
+      Connect
+      {isBusy ? <Spinner aria-hidden /> : <ArrowUpRight aria-hidden />}
+    </Button>
+  );
+}
+
+function DisconnectButton() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function disconnect(): void {
+    startTransition(async () => {
+      try {
+        await disconnectZoho();
+        setIsOpen(false);
+        toast.success("Zoho disconnected.");
+      } catch {
+        toast.error("Zoho could not be disconnected. Please try again.");
+      }
+    });
+  }
+
+  return (
+    <AlertDialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        // Not dismissed while the disconnect runs, so the outcome is always seen.
+        if (!isPending) {
+          setIsOpen(open);
+        }
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button variant="outline">
+          <Unplug aria-hidden />
+          Disconnect
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Disconnect Zoho?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This app loses access to your Zoho account, and Zoho revokes the permission you
+            gave it. To use Zoho here again, connect and give consent again.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={isPending}
+            onClick={(event) => {
+              // Kept open until the disconnect finishes, rather than closing on click.
+              event.preventDefault();
+              disconnect();
+            }}
+          >
+            {isPending && <Spinner aria-hidden />}
+            {isPending ? "Disconnecting" : "Disconnect Zoho"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/** The signed-in user's Zoho connection, read by the page on the server. */
+export function ZohoConnectionPanel({ connected }: { connected: boolean }) {
   return (
     <div className="flex items-center gap-4">
       <span
         aria-hidden
         className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${
-          data.connected ? "bg-success-wash text-success" : "bg-muted text-muted-foreground"
+          connected ? "bg-success-wash text-success" : "bg-muted text-muted-foreground"
         }`}
       >
         <PlugZap className="size-5" />
       </span>
       <div className="flex-1">
         <p className="text-sm font-medium">Zoho</p>
-        <ConnectionStatus connected={data.connected} />
+        <ConnectionStatus connected={connected} />
       </div>
-      {data.connected ? (
-        <Button
-          variant="outline"
-          disabled={disconnect.isPending}
-          onClick={() => disconnect.mutate()}
-        >
-          {disconnect.isPending ? <Spinner aria-hidden /> : <Unplug aria-hidden />}
-          Disconnect
-        </Button>
-      ) : (
-        <Button disabled={isLeavingForZoho} onClick={() => connect.mutate()}>
-          Connect
-          {isLeavingForZoho ? <Spinner aria-hidden /> : <ArrowUpRight aria-hidden />}
-        </Button>
-      )}
+      {connected ? <DisconnectButton /> : <ConnectButton />}
     </div>
   );
 }

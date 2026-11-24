@@ -1,8 +1,9 @@
 # Steps every function shares
 
 Every `add-*-fn` skill reads this file, after `deployable-steps.md` and before its own
-steps. What goes inside the function is in that kind's rule under
-`.claude/rules/catalyst/`, and every entry point follows
+steps. What goes inside the function is in that kind's rule - `.claude/rules/node-job/` for a
+Job function, `.claude/rules/node-event/` for a Signal function, `.claude/rules/catalyst/`
+for Basic I/O and Advanced I/O - and every entry point follows
 `.claude/rules/catalyst/function-entry-point.md`.
 
 1. **Generate its config once.** From the repo root:
@@ -27,11 +28,16 @@ steps. What goes inside the function is in that kind's rule under
    - Delete the `env_variables` key the CLI writes into it. Catalyst keeps each function's
      environment variables against the resource in the Console, so this repo does not
      maintain them.
-2. **The workspace** is set up like `apps/api`: CommonJS, the same `tsconfig.json` /
-   `tsconfig.build.json` pair, and `@types/node`. Its dependencies are `@repo/node-utils`
-   and the `@zcatalyst/*` packages its wrappers need. In `eslint.config.mjs`, list each
-   file that builds the Catalyst app itself in `allowCatalystSdk([...])`.
-3. **`scripts/bundle.mjs`** is a copy of `apps/api`'s, with these changes:
+2. **The workspace** is set up as "Build and bundle" in `node-api/express-app.md` says:
+   CommonJS, the `tsconfig.json` / `tsconfig.build.json` pair, and `@types/node`. Its
+   dependencies are `@repo/async-context`, `@repo/logger`, `@repo/catalyst-node`,
+   `@repo/repositories` once it reads a record, the `@zcatalyst/*` packages its wrappers
+   need, and `pino` - the logger's runtime dependency, which the bundle installs rather than
+   inlines. The function sets its apps through
+   `CatalystSession.setApp` rather than building them itself, so it needs no
+   `allowCatalystSdk([...])`.
+3. **`scripts/bundle.mjs`** is written as "Build and bundle" in `node-api/express-app.md`
+   describes, from a copy of `apps/proxy/scripts/bundle.mjs`, with these changes:
    - `outDir` is `functions/<name>`.
    - It copies `catalyst-config.json` instead of `app-config.json`.
    - The entry is `src/index.ts` alone, so `src/dev-server.ts` is never bundled.
@@ -41,8 +47,10 @@ steps. What goes inside the function is in that kind's rule under
 
 **Running it locally:** every kind has a `src/dev-server.ts`, which `pnpm dev` starts on a
 port from 8100 up through the `dev` script
-(`tsx watch --env-file-if-exists=../../.env --env-file-if-exists=.env src/dev-server.ts`).
-The proxy routes the function's prefix to that port, so a local call goes through the URL
+(`tsx watch --env-file-if-exists=.env src/dev-server.ts`). Turbo starts it, not
+`catalyst serve`, and `pnpm dev` hands turbo the Catalyst SDK's own keys, so its
+`.env.example` leaves them out (`environment.md`, "The keys the Catalyst SDK reads"). The
+proxy routes the function's prefix to that port, so a local call goes through the URL
 `pnpm dev` prints and carries the headers `catalyst serve` injects. Do not run functions
 with `catalyst functions:execute` or `catalyst serve --only functions` - the dev server is
 the local loop. It never reaches the bundle: nothing imports it from `src/index.ts`.

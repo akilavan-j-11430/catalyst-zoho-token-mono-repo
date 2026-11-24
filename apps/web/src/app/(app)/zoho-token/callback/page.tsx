@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import type { ZohoGrantCode } from "@repo/types/zoho-token";
+import type { ZohoGrantCode } from "@/app/(app)/zoho-token/callback/complete-zoho-consent";
 import { ZohoConsentCompletion } from "@/components/zoho-token/zoho-consent-completion";
 
 export const metadata: Metadata = { title: "Connecting Zoho" };
 
 /**
- * Where Zoho sends the browser after its consent screen - the Authorized Redirect URI, built
- * by `apps/api` from `WebPath`. Move this folder and that value together.
+ * Where Zoho sends the browser after its consent screen - `WebPath.ZohoTokenCallback`, the
+ * Authorized Redirect URI. Move this folder and that value together.
  */
 export default async function ZohoTokenCallbackPage({
   searchParams,

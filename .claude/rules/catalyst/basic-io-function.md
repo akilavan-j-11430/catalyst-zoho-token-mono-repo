@@ -1,10 +1,15 @@
+---
+paths:
+  - "apps/*/src/handler.ts"
+---
+
 # Basic I/O function
 
 A Basic I/O function does one thing: it reads its arguments, does one piece of work, and
 writes back one string. It has a single handler and nothing else. There is no routing, no
 dispatch, and no switch on an argument that picks between kinds of request. If you need a
-second operation, write a second function, or use an Advanced I/O function or an `api`
-route if it needs real HTTP.
+second operation, write a second function, or use an Advanced I/O function if it needs
+real HTTP.
 
 Creating the workspace, its bundle, `catalyst.json` and the `deploy` flag is covered in
 the `add-bio-fn` skill. This file covers what goes inside.
@@ -16,6 +21,7 @@ apps/<name>/
   src/handler.ts        the handler - the one thing this function does
   src/index.ts          `module.exports = handler` - the bundle entry
   src/dev-server.ts     local only - calls the same handler from an Express route
+  src/<name>-path.ts    the dev server's path - `general/routing.md`
   catalyst-config.json  from `catalyst functions:add --type bio`
 ```
 
@@ -25,19 +31,21 @@ Catalyst, and `dev-server.ts` calls it locally. The dev server cannot import fro
 TypeScript to import.
 
 If the work takes more than a few lines, put it in a repository or a wrapper method in
-node-utils, as a route would. The handler stays short and just calls it.
+`@repo/catalyst-node`, as a route would. The handler stays short and just calls it.
 
 ## The handler
 
 ```ts
 // src/handler.ts
 import { randomUUID } from "node:crypto";
-import { zcAuth } from "@zcatalyst/auth";
-import { Catalyst } from "@repo/node-utils/catalyst/catalyst";
-import { CatalystScope } from "@repo/node-utils/enums/catalyst-scope";
-import { ExecutionContext, runWithContext } from "@repo/node-utils/framework/async-context";
-import { logger } from "@repo/node-utils/framework/logger";
-import { TodoRepository } from "@repo/node-utils/repositories/todo-repository";
+import { CatalystScope } from "@repo/catalyst-node/catalyst-scope";
+import { CatalystSession } from "@repo/catalyst-node/catalyst-session";
+import { ExecutionContext, runWithContext } from "@repo/async-context/async-context";
+import { CatalystLogOutput } from "@repo/logger/catalyst-log-output";
+import { Logger } from "@repo/logger/logger";
+import { TodoRepository } from "@repo/repositories/todo-repository";
+
+const logger = Logger.for("todo-lookup");
 
 /** What Catalyst passes a Basic I/O function - `types/basicio.d.ts` from `functions:add`. */
 export interface BasicIo {
@@ -59,29 +67,30 @@ export async function handler(context: BasicIoContext, basicIo: BasicIo): Promis
     context.close();
     return;
   }
-  const catalyst = new Catalyst();
-  const execution = new ExecutionContext({ executionId: randomUUID(), catalyst, extras: {} });
+  const execution = new ExecutionContext({ executionId: randomUUID(), extras: {} });
   try {
-    catalyst.setApp(
-      CatalystScope.Admin,
-      await zcAuth.init(context as unknown as Parameters<typeof zcAuth.init>[0], {
-        scope: CatalystScope.Admin,
-      }),
-    );
-    const todo = await runWithContext(execution, () => TodoRepository.find(todoId));
+    const todo = await runWithContext(execution, async () => {
+      await CatalystSession.setApp(context.catalystHeaders, CatalystScope.Admin);
+      return TodoRepository.findForSupport(todoId);
+    });
     basicIo.write(JSON.stringify(todo ?? null));
   } catch (error) {
     logger.error(error);
     basicIo.setStatus(500);
     basicIo.write("Something went wrong.");
   }
+  await CatalystLogOutput.flush();
   context.close();
 }
 ```
 
 ```ts
-// src/index.ts
+// src/index.ts - the deployed entry only; the dev server leaves the logger on stdout
+import { CatalystLogOutput } from "@repo/logger/catalyst-log-output";
+import { Logger } from "@repo/logger/logger";
 import { handler } from "@/handler";
+
+Logger.configure({ output: CatalystLogOutput });
 
 module.exports = handler;
 ```
@@ -92,11 +101,14 @@ module.exports = handler;
   string throws.
 - **Call `context.close()` on every path**, including the early return after validation.
   A run that is never closed holds the caller until it times out.
-- **Use Admin scope.** No one has checked yet whether a Basic I/O context can build a
-  User app. Check that before a function relies on knowing who called it.
-- The export, the awaited init and the logger are the same for every function, and
-  `function-entry-point.md` explains each one. `eslint.config.mjs` adds
-  `allowCatalystSdk(["src/handler.ts"])`.
+- **Use Admin scope,** and call the repository methods that read with it -
+  `findForSupport`, not `find` (`general/repositories.md`, "Which scope a method reads
+  with"). No one has checked yet whether a Basic I/O context can build a User app. Check
+  that before a function relies on knowing who called it.
+- The export, the execution context, the apps and the logger are the same for every
+  function, and `function-entry-point.md` explains each one. The handler imports no
+  `@zcatalyst/*` - `CatalystSession.setApp` builds the app - so the function needs no
+  `allowCatalystSdk`.
 
 ## The dev server
 
@@ -107,8 +119,8 @@ into the `BasicIo` and context objects Catalyst would pass, and turns `write` an
 ```ts
 // src/dev-server.ts - local only, never imported by index.ts, so never bundled
 import express from "express";
-import { TodoLookupPath } from "@repo/routing/todo-lookup-path";
 import { handler, type BasicIo, type BasicIoContext } from "@/handler";
+import { TodoLookupPath } from "@/todo-lookup-path";
 
 const app = express();
 app.get(TodoLookupPath.TodoLookup, async (req, res) => {
@@ -138,11 +150,11 @@ app.get(TodoLookupPath.TodoLookup, async (req, res) => {
 app.listen(8100);
 ```
 
-- **Its path lives in `packages/routing/src/<name>-path.ts`.** The proxy routes that path
-  to the dev port, so the request carries the Catalyst headers. Called directly, the init
-  fails with `app/invalid_project_details`.
-- **It needs no `@repo/http-server`.** The handler builds its own execution context, as
-  it does when deployed.
+- **Its path lives in its own `src/<name>-path.ts`** (`general/routing.md`). The proxy
+  routes that path to the dev port, so the request carries the Catalyst headers. Called
+  directly, the init fails with `app/invalid_project_details`.
+- **It needs no Express plumbing.** The handler builds its own execution context, as it
+  does when deployed.
 - **`express` is a `devDependency`.** The `dev` script runs `tsx watch` on
   `src/dev-server.ts`, on a port from 8100 up.
 

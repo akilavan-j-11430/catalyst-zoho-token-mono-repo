@@ -1,0 +1,39 @@
+{
+  "name": "@repo/zoho-token",
+  "version": "1.0.0",
+  "description": "ZohoConnection - each user's Zoho grant and the access tokens minted from it - and ZohoAccounts, the one seam to the Zoho accounts server. Node only.",
+  "type": "module",
+  "private": true,
+  "license": "ISC",
+  "scripts": {
+    "dev": "tsc --build tsconfig.build.json && concurrently -n tsc,alias \"tsc --build tsconfig.build.json --watch --preserveWatchOutput\" \"tsc-alias -p tsconfig.build.json --watch\"",
+    "build": "tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration"
+  },
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/testing": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.13.6",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.5",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@repo/async-context": "workspace:*",
+    "@repo/case-conversion": "workspace:*",
+    "@repo/catalyst-node": "workspace:*",
+    "@repo/http-client": "workspace:*",
+    "@repo/logger": "workspace:*",
+    "@repo/repositories": "workspace:*"
+  }
+}

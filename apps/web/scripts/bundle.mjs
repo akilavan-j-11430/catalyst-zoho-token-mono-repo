@@ -41,24 +41,58 @@ const packageJsonFile = JSON.parse(
   await readFile(join(root, "package.json"), "utf-8"),
 );
 
-const repoPackageNames = Object.keys(packageJsonFile.dependencies).filter(
-  (name) => name.startsWith("@repo/"),
-);
+/** A workspace package's folder under packages/ - `@repo/catalyst-node` -> `catalyst-node`. */
+function folderOf(name) {
+  return name.slice("@repo/".length);
+}
 
-// Slate uploads only this directory, so a workspace package is copied in from its
-// built output and installed as a `file:` dependency.
-async function vendorPackage(name) {
-  const folder = name.slice("@repo/".length);
-  const sourceDir = join(packagesDir, folder);
-  const targetDir = join(outDir, "vendor", folder);
-  const manifest = JSON.parse(
-    await readFile(join(sourceDir, "package.json"), "utf-8"),
-  );
-  // The vendored manifest keeps only what resolving an import needs, so a runtime
-  // dependency would be dropped without a trace.
-  if (manifest.dependencies) {
-    throw new Error(`${name} declares dependencies, which vendoring would drop.`);
+// Every @repo package the app reaches, directly or through another @repo package -
+// `@repo/catalyst-node` brings `@repo/async-context`, `@repo/case-conversion` and `@repo/types`.
+const repoManifests = new Map();
+const pendingNames = Object.keys(packageJsonFile.dependencies).filter((name) =>
+  name.startsWith("@repo/"),
+);
+while (pendingNames.length > 0) {
+  const name = pendingNames.pop();
+  if (repoManifests.has(name)) {
+    continue;
   }
+  const manifest = JSON.parse(
+    await readFile(join(packagesDir, folderOf(name), "package.json"), "utf-8"),
+  );
+  repoManifests.set(name, manifest);
+  pendingNames.push(
+    ...Object.keys(manifest.dependencies ?? {}).filter((dependency) =>
+      dependency.startsWith("@repo/"),
+    ),
+  );
+}
+
+// A vendored package's own third-party dependencies - `pino`, the `@zcatalyst/*` SDKs - are
+// installed at the staged app's root, where Node finds them walking up from vendor/. Two
+// packages asking for different versions of one dependency would install only one, so stop.
+const liftedDependencies = { ...packageJsonFile.dependencies };
+for (const [name, manifest] of repoManifests) {
+  for (const [dependency, version] of Object.entries(manifest.dependencies ?? {})) {
+    if (dependency.startsWith("@repo/")) {
+      continue;
+    }
+    const wanted = liftedDependencies[dependency];
+    if (wanted !== undefined && wanted !== version) {
+      throw new Error(
+        `${name} needs ${dependency}@${version}, but the app installs ${wanted}. Align them before bundling.`,
+      );
+    }
+    liftedDependencies[dependency] = version;
+  }
+}
+
+// Slate uploads only this directory, so a workspace package is copied in from its built
+// output and installed as a `file:` dependency of the app itself - every @repo package the
+// app reaches, so one vendored package finds another at the app's root.
+async function vendorPackage(name, manifest) {
+  const sourceDir = join(packagesDir, folderOf(name));
+  const targetDir = join(outDir, "vendor", folderOf(name));
   await access(join(sourceDir, "dist")).catch(() => {
     throw new Error(`${name} has no dist/ - build it before bundling.`);
   });
@@ -70,11 +104,13 @@ async function vendorPackage(name) {
     join(targetDir, "package.json"),
     JSON.stringify({ name, version, type, exports }, null, 2),
   );
-  return [name, `file:./vendor/${folder}`];
+  return [name, `file:./vendor/${folderOf(name)}`];
 }
 
 const vendoredDependencies = Object.fromEntries(
-  await Promise.all(repoPackageNames.map(vendorPackage)),
+  await Promise.all(
+    [...repoManifests].map(([name, manifest]) => vendorPackage(name, manifest)),
+  ),
 );
 
 // Slate builds with `npm install` / `npm run build`, and npm neither understands
@@ -116,7 +152,7 @@ const devDependencies = Object.fromEntries(
 
 const packageJson = {
   ...packageJsonFile,
-  dependencies: { ...packageJsonFile.dependencies, ...vendoredDependencies },
+  dependencies: { ...liftedDependencies, ...vendoredDependencies },
   devDependencies,
   packageManager: `npm@${npmVersion.trim()}`,
 };

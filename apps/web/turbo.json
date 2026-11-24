@@ -1,9 +1,22 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "extends": ["//"],
+  "extends": [
+    "//"
+  ],
   "tasks": {
     "bundle": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "dev": {
+      "passThroughEnv": [
+        "TZ",
+        "ZOHO_TOKEN_CLIENT_ID",
+        "ZOHO_TOKEN_CLIENT_SECRET",
+        "ZOHO_TOKEN_SCOPES",
+        "ZOHO_TOKEN_ACCOUNTS_URL"
+      ]
     }
   }
 }

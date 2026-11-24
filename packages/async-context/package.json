@@ -1,0 +1,27 @@
+{
+  "name": "@repo/async-context",
+  "version": "1.0.0",
+  "description": "ExecutionContext over AsyncLocalStorage - the execution id and extras of the request or run in flight. Node only.",
+  "type": "module",
+  "private": true,
+  "license": "ISC",
+  "scripts": {
+    "dev": "tsc --build tsconfig.build.json && concurrently -n tsc,alias \"tsc --build tsconfig.build.json --watch --preserveWatchOutput\" \"tsc-alias -p tsconfig.build.json --watch\"",
+    "build": "tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint"
+  },
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.13.6",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.5"
+  }
+}

@@ -1,21 +1,23 @@
 # Catalyst SDK access
 
-Every Catalyst SDK call goes through `packages/node-utils/src/catalyst/`. No
+Every Catalyst SDK call goes through `packages/catalyst-node/src/`. No
 `@zcatalyst/*` package may be imported anywhere else, and ESLint enforces it.
 
 One file per component - `bucket.ts`, `table.ts`, `zcql.ts`, `cache.ts`, `job.ts` - plus
-`resources.ts`, which names the resources. Each component builds the SDK client
-it needs itself, in a module-private accessor at the top of the file, and reaches for the
-app nowhere else:
+`catalyst-session.ts`, which sets the apps, and `resources.ts`, which names the resources this
+app uses (below).
+Each component builds the SDK client it needs itself, in a module-private accessor at the
+top of the file, from the app the entry point set for the request in flight, and reaches
+for an app nowhere else:
 
 ```ts
-// packages/node-utils/src/catalyst/bucket.ts
+// packages/catalyst-node/src/bucket.ts
 import { Stratus } from "@zcatalyst/stratus";
-import type { CatalystScope } from "@/enums/catalyst-scope";
-import { currentContext } from "@/framework/async-context";
+import type { CatalystScope } from "@/catalyst-scope";
+import { CatalystSession } from "@/catalyst-session";
 
 function stratus(scope: CatalystScope): Stratus {
-  return new Stratus(currentContext().manager.catalyst.getApp(scope));
+  return new Stratus(CatalystSession.app(scope));
 }
 ```
 
@@ -25,45 +27,49 @@ Catalyst, and a boundary ESLint can name.
 ## Reaching a resource
 
 A wrapper instance is a **handle**: it holds a name and nothing else. Build it once, at
-module scope, in `resources.ts` - one `export const` per Catalyst resource this repo uses,
-and the only place a wrapper is ever constructed:
+module scope, in `packages/catalyst-node/src/resources.ts` - one `export const` per Catalyst
+resource this repo uses, and the only place a wrapper is ever constructed:
 
 ```ts
-// packages/node-utils/src/catalyst/resources.ts
-import { Bucket } from "@/catalyst/bucket";
-import { Cache } from "@/catalyst/cache";
-import { Job } from "@/catalyst/job";
-import { Table } from "@/catalyst/table";
+// packages/catalyst-node/src/resources.ts
+import { Bucket } from "@/bucket";
+import { Cache } from "@/cache";
+import { Job } from "@/job";
+import { Table } from "@/table";
 
-export const todoTable = Table.create<{
+/** A row of the Todo table, keyed by its Catalyst column names. */
+export interface TodoRow {
   TITLE: string;
   NOTES?: string;
-}>("Todo");
+}
+
+export const todoTable = Table.create<TodoRow>("Todo");
 export const invoiceBucket = Bucket.create("invoices");
 export const sessionCache = Cache.create();
 export const reminderJob = Job.create<{ todoId: string }>({
   jobName: "reminder",
   aliasName: "reminder",
   jobPoolName: "default",
-  jobTargetFunctionName: "job_executor",
+  jobTargetFunctionName: "job-executor",
 });
 ```
 
 **Always `create`, never `new`.** The constructors are private precisely so that this file
 is the only seam. Never declare a second handle for a resource that already has one. A
-table handle is imported only by that table's repository (`vendor-boundaries.md`); a
+table handle is imported only by that table's repository (`repositories.md`); a
 bucket, cache or job handle may be imported wherever it is needed:
 
 ```ts
-// packages/node-utils/src/repositories/todo-repository.ts
-import { CatalystScope } from "@/enums/catalyst-scope";
-import { todoTable } from "@/catalyst/resources";
+// packages/repositories/src/todo-repository.ts
+import { CatalystScope } from "@repo/catalyst-node/catalyst-scope";
+import { todoTable } from "@repo/catalyst-node/resources";
 
 const storedTodo = await todoTable.runIn(CatalystScope.User).getRow(todoId);
 ```
 
-It lives here rather than in an app because `apps/api` is one AppSail among however many a
-solution grows, and two apps reaching the same table must not name it twice.
+It lives in a package rather than in an app because the web app is one deployable among
+however many a solution grows, and two of them reaching the same table must not name it
+twice.
 
 The four factories differ, because the resources do:
 
@@ -72,7 +78,7 @@ The four factories differ, because the resources do:
 | `Table.create<Row>("Todo")` | the table name, where `Row` declares its columns - see below |
 | `Bucket.create("invoices")` | the bucket name |
 | `Cache.create()` | a segment **id**, not a name - omit it for the project default segment |
-| `Job.create<T>({ jobName, aliasName, jobPoolName, jobTargetFunctionName })` | a config object, where `T` types the job's params and `aliasName` may not exceed 20 characters |
+| `Job.create<T>({ jobName, aliasName, jobPoolName, jobTargetFunctionName })` | a config object, where `T` types the job's params and `aliasName` is 1-20 letters, digits or underscores - Catalyst sends it as `job_name` and rejects a hyphen |
 
 `jobTargetFunctionName` is the function the job pool invokes. There is no default: a job
 that does not say what runs it is a deploy-time failure nothing catches, so every job names
@@ -80,31 +86,34 @@ its own. Several jobs may share one executor, which dispatches on the `jobName` 
 the params.
 
 Both methods take a single object. `submitJob` queues the job now; `submitOneTimeCron`
-schedules it, and its `cronName` is required, unique in the project, and capped at 20
-characters like the alias:
+schedules it. `timeOfExecution` is epoch milliseconds, as `Date.getTime()` gives, and the
+wrapper sends Catalyst the seconds it reads; a time below 2001 is taken for seconds passed by
+mistake and throws. `cronName` is required; keep it to letters, digits and underscores - a
+precaution, since only `job_name`'s rule is confirmed - and keep it unique yourself: Catalyst
+does not enforce that, so a caller that must not schedule twice marks its own record:
 
 ```ts
 await reminderJob.submitJob({ params: { todoId: "1" } });
 await reminderJob.submitOneTimeCron({
   timeOfExecution: runAt,          // epoch milliseconds
   params: { todoId: "1" },
-  cronName: "remind-0001",
+  cronName: "remind_0001",
 });
 ```
 
 A job that takes no params is `Job<void>` - the generic's default - and then the `params`
-key is gone rather than empty:
+key is gone rather than empty, and `submitJob` takes no argument at all:
 
 ```ts
 export const nightlyReportJob = Job.create({
   jobName: "nightly_report",
   aliasName: "nightly_report",
   jobPoolName: "default",
-  jobTargetFunctionName: "report_executor",
+  jobTargetFunctionName: "report-executor",
 });
 
-await nightlyReportJob.submitJob({});
-await nightlyReportJob.submitOneTimeCron({ timeOfExecution: runAt, cronName: "nightly-01" });
+await nightlyReportJob.submitJob();
+await nightlyReportJob.submitOneTimeCron({ timeOfExecution: runAt, cronName: "nightly_01" });
 ```
 
 The generic decides which, so the two cannot be confused: passing a payload to a void job,
@@ -112,16 +121,15 @@ or omitting one from a typed job, is a compile error.
 
 ### Declaring a table's row
 
-`Row` is an object type keyed by the Catalyst column names - `REFERENCE_ID`, not
-`referenceId` - written inline in `create`, and it is the only place a table's columns are
-written down. Name it as an exported interface beside the handle only when a second caller
-needs the type itself. Everything else is derived from it:
+`Row` is an interface keyed by the Catalyst column names - `TITLE`, not `title` - exported
+beside the handle as `<Table>Row`, because the table's repository maps from it. It is the only
+place a table's columns are written down. Everything else is derived from it:
 
 | Call | Takes | Returns |
 |---|---|---|
 | `insertRow` / `insertRows` | `Row` | `StoredRow<Row>` |
 | `updateRow` / `updateRows` | `RowUpdate<Row>` - any subset of `Row`, plus `ROWID` | `StoredRow<Row>` |
-| `getRow` / `getPagedRows` | a `ROWID` / a page token | `StoredRow<Row>` |
+| `getRow` / `getPagedRows` | a `ROWID` / a page token | `StoredRow<Row>` - `getRow` gives `undefined` when no row has that ROWID, which Catalyst answers with `null`; any rejection throws `CatalystError` |
 
 - **A non-optional property is a mandatory column.** Leaving it out of an insert is a
   compile error; an optional property (`NOTES?`) may be left out.
@@ -164,8 +172,32 @@ A statement returns at most 300 rows, so a read that can exceed that pages with
 single one, so it is static and starts from `runIn` -
 `Zcql.runIn(CatalystScope.User).executeQuery("SELECT ...")`.
 
-`resources.ts` exists and declares two: `zohoConnectionTable` for the `ZohoConnection` table,
-imported only by `repositories/zoho-connection-repository.ts`, and `zohoConnectionCache` for
+**Every value goes in as a `?`, with the values passed beside the statement** - never
+written into the statement. ZCQL has no bound parameters of its own, so `executeQuery` binds
+them: a value with a quote in it would otherwise end the literal and rewrite the query.
+
+```ts
+await Zcql.runIn(CatalystScope.User).executeQuery(
+  `SELECT ${table.column("ROWID")} FROM ${table.name} WHERE ${table.column("TITLE")} = ?`,
+  [title],
+);
+```
+
+- Table and column names come from the handle and go in the template; they are never a
+  caller's input.
+- A string is quoted with each quote inside doubled - ZCQL's only escape; a backslash is an
+  ordinary character. A number goes in as written, and one that is not finite throws.
+- `null` goes in as `NULL`, which `SET` and `INSERT` take. In a filter it is the caller's
+  call: as in SQL, `NOTES = NULL` matches no row and `NOTES IS NULL` is the test for an unset
+  column.
+- Every `?` in the statement is a placeholder, one inside a quoted literal included, so a
+  constant with a `?` in it goes in as a value too: `LIKE ?` with `["*?*"]`, never
+  `LIKE '*?*'`.
+- A count of values that does not match the `?`s throws before any call.
+- The error from a failed query never carries the statement, since it holds the values.
+
+`resources.ts` declares two: `zohoConnectionTable` for the `ZohoConnection` table, imported
+only by `zoho-connection-repository.ts` in `@repo/repositories`, and `zohoConnectionCache` for
 the project's default cache segment, which holds minted Zoho access tokens. The OAuth consent
 state is signed, not stored, so it costs no cache call.
 
@@ -178,42 +210,75 @@ is the whole point of `resources.ts`.
 
 The **SDK client** - `Datastore`, `Stratus`, `Cache`, `JobScheduling` - is built from the
 per-request app, which carries the caller's credentials. **Call the accessor per use, and
-never assign a client to a module-level `const`**, or one held across requests serves
-another user's data.
+never assign a client or an app to a module-level `const`**, or one held across requests
+serves another user's data.
 
-That is why every accessor is a function and every method calls it again, and it is what
-makes the handle safe to hoist. Nothing structural enforces it - the accessors live in five
-files - so check it when reviewing a wrapper.
+That is why every accessor is a function that reads `CatalystSession.app(scope)` again on
+every call, and it is what makes the handle safe to hoist. Nothing structural enforces it -
+the accessors live in five files - so check it when reviewing a wrapper.
 
-## One app per scope
+## One app per scope, per request
+
+The app is built from a request's headers - its project details and the caller's
+credentials - so it belongs to that request alone. It lives on the request's execution
+context (`@repo/async-context`), which `AsyncLocalStorage` keeps apart for every request in
+flight. `CatalystSession` (`catalyst-session.ts`) is the only code that puts it there or
+reads it back:
+
+- `await CatalystSession.setApp(headers, scope)` builds one scope's app with `zcAuth.init`
+  and sets it on the context in flight. The entry point calls it once, up front, for every
+  scope its code uses.
+- `CatalystSession.app(scope)` returns the app the entry point set. Every wrapper accessor
+  calls it, on every call.
+
+Apps are not built on first use. A wrapper that asks for a scope the entry point did not
+set throws `CatalystError` (`SCOPE_UNAVAILABLE`), and one called outside an execution
+context throws `AsyncContextError`. The same wrappers then serve a Next.js page or Server
+Action, an Express route or a Catalyst function - each entry point sets the apps from the
+headers it has, and no call passes them along.
+
+```tsx
+// apps/web/src/app/(app)/page.tsx - withCatalystPage sets the User app; the page calls the wrapper
+export default withCatalystPage([CatalystScope.User], async function HomePage() {
+  const user = await UserManagement.currentUser();
+  ...
+});
+```
+
+A scope `setApp` cannot build - User, when the request carries no signed-in user - rejects
+with `CatalystError` (`SCOPE_UNAVAILABLE`), holding only the SDK's code and message: the
+SDK's own error carries the request headers, credential tokens included, so it is never
+attached or logged. In `apps/web`, `withCatalystPage` and `withCatalystFn` let it throw
+before the page or action runs; `src/proxy.ts` has already sent a signed-out visitor to
+`/sign-in` (`nextjs/code-placement.md`). An API app's `initCatalystScopes([...])` turns a User
+failure into a 401 (`node-api/express-app.md`). An Admin failure throws, and an API app
+answers it with a 500.
+
+**Never hold an app at module scope** or store it on a handle. It is the one object here
+that carries a caller's credentials, so one kept past its request serves another user's
+data. Read it through `CatalystSession.app` at the point of use and let it go.
 
 User scope covers only the methods the browser SDK exposes
 (https://docs.catalyst.zoho.com/en/sdk/javascript/v1/webpack-bundler/#browser-supported-javascript-methods);
-everything else needs Admin. So the context carries a `Catalyst` (`catalyst.ts`) holding one
-app per `CatalystScope`. It starts empty: a route that calls Catalyst mounts
-`initCatalystScopes([...])` (`@repo/http-server/middleware`), which builds only the scopes it
-names from the request's headers, so a route that never touches Catalyst never pays for an
-init. A named scope that cannot be built fails the request - User, when the request carries
-no signed-in user, is a 401. A scope the route did not name is never built, and
-`getApp(scope)` throws `CatalystError` with `SCOPE_UNAVAILABLE` when something asks for it.
+everything else needs Admin. Use User unless the method is missing from the browser list.
+Cache and Job Scheduling are admin-only, so their handles always use the Admin app.
 
-Use User unless the method is missing from the browser list. Cache is admin-only.
-
-**Table, Bucket and Zcql take the scope at the call site, never in `resources.ts`.** A handle
-holds a name and exposes only `runIn(scope)`, which returns the scoped operations
-(`ScopedTable`, `ScopedBucket`, `ScopedZcql`). Skipping it is a compile error, not a
-default, so every call names whose credentials it uses:
+**A Table, Bucket or Zcql call starts from `runIn(scope)`.** These handles expose only
+`runIn`, which returns the operations bound to that scope (`ScopedTable`, `ScopedBucket`,
+`ScopedZcql`). Skipping it is a compile error, not a default, so every call names whose
+credentials it uses. Cache and Job have a fixed scope, so their methods sit on the handle
+itself:
 
 ```ts
-// packages/node-utils/src/repositories/zoho-connection-repository.ts
-await zohoConnectionTable.runIn(CatalystScope.User).insertRow(row);
+await todoTable.runIn(CatalystScope.User).insertRow(row);
 await Zcql.runIn(CatalystScope.Admin).executeQuery("SELECT ...");
+await sessionCache.getValue(key);
 ```
 
 `runIn` returns a new object and never mutates the handle. The handle is a module-level
-singleton shared by every request, so a scope stored on it would leak across concurrent
-requests. A method that makes no Catalyst call - `Bucket.buildKey` - stays on the handle.
-The scoped classes are exported as types only, so `runIn` is the only way to build one.
+singleton shared by every request, so it holds a name and a scope at most - never an app.
+A method that makes no Catalyst call - `Bucket.buildKey` - stays on the handle. The scoped
+classes are exported as types only, so `runIn` is the only way to build one.
 
 **Never construct an SDK client without an app.** `new CacheClient()` does not fail: the SDK
 falls back to a module-level default holding whichever request called `zcAuth.init` last,
@@ -229,7 +294,8 @@ the fewest calls that answer the question**, and a review asks how many each pat
 
   ```ts
   await Zcql.runIn(CatalystScope.Admin).executeQuery(
-    `DELETE FROM ${table.name} WHERE ${table.column("REFERENCE_ID")} = '${referenceId}'`,
+    `DELETE FROM ${table.name} WHERE ${table.column("TITLE")} = ?`,
+    [title],
   );
   ```
 
@@ -251,94 +317,31 @@ the fewest calls that answer the question**, and a review asks how many each pat
 A path that has to make several calls should say so in a comment, so the next reader
 does not "optimise" a call that is load-bearing.
 
-## Writing a wrapper
-
-One file per component, flat under `catalyst/`. A wrapper exists to give this
-repo's vocabulary to a Catalyst call, so:
-
-- Take and return plain values - `string`, `Readable`, a domain type. Never hand an SDK
-  object back to a caller, or the seam leaks.
-- Throw `CatalystError` (`@/errors/catalyst-error`) with an `ErrorCode`, never a raw SDK
-  error.
-- Validate what Catalyst will reject anyway - a TTL under 60s, an alias over 20 chars -
-  before spending the round trip.
-- Keep the constructor `private` and expose a `static create(...)`, so construction stays
-  in `resources.ts`.
-
 ## A missing capability is a new method
 
-**When a route needs something the wrapper does not do yet, add the method to the
-wrapper.** Never reach past it - not to the SDK, not to the app on the context, not with
+**When a caller needs something the wrapper does not do yet, add the method to the
+wrapper.** Never reach past it - not to the SDK, not to `CatalystSession.app`, not with
 a one-off client built at the call site. The ESLint boundary stops the import, but the
-rule is about intent: the point of `catalyst/` is that one directory answers
-what this repo asks of Catalyst, and a capability used from a route is invisible there.
+rule is about intent: the point of `packages/catalyst-node/src/` is that one directory answers
+what this repo asks of Catalyst, and a capability used from a page or a route is invisible
+there.
 
 So `listObject` on `Bucket`, `getPagedRows` on `Table`, `submitOneTimeCron` on `Job` -
 each arrived because something needed it. Add the next one the same way, following the
-rules above, and call it from the route:
+rules above, and call it from where it is needed:
 
 ```ts
-// packages/node-utils/src/catalyst/bucket.ts - on ScopedBucket
+// packages/catalyst-node/src/bucket.ts - on ScopedBucket
 async copyObject(sourceKey: string, targetKey: string): Promise<void> {
   ...
 }
 
-// apps/api/src/routes/invoice.ts
+// apps/web/src/invoice/invoices.ts
 await invoiceBucket.runIn(CatalystScope.User).copyObject(draftKey, finalKey);
 ```
 
 A method that turns out to be single-use is still the right shape. It costs one small
 function and keeps the seam whole.
 
-## The SDK exports almost nothing
-
-`@zcatalyst/*` packages export only their top-level client. `Bucket`, `Table`, `Segment`
-and every payload type are internal. Derive what you need from the method that produces
-it rather than deep-importing a built file, which would break on any upgrade:
-
-```ts
-type CatalystBucket = ReturnType<Stratus["bucket"]>;
-type SubmitInput = Parameters<JobScheduling["JOB"]["submitJob"]>[0];
-```
-
-**Never import from `dist-es/`, `dist-cjs/` or `dist-types/`.** Those are build artefacts,
-not an API, and a reader who finds one cannot tell whether it is load-bearing.
-
-That rule costs something, and the cost is worth knowing. The SDK's enums are reachable
-nowhere else: `CRON_TYPE` and `TARGET_TYPE` are re-exported from no package root, their
-values ship in `dist-es/` with no declarations beside them, and their declarations sit in
-`dist-types/` with no JS behind them - so `dist-types` type-checks and then throws at
-runtime, while `dist-es` runs as an implicit `any`. Reaching them at all takes a
-`declare module` bridging the two directories.
-
-Do not build that bridge. **Name the wire shape this repo sends and cast once, at the
-call.** The payload stays fully checked, the vendor's build layout stays irrelevant, and
-what Catalyst receives is readable in one place:
-
-```ts
-interface FunctionJobRequest {
-  job_name: string;
-  jobpool_name: string;
-  target_type: "Function";
-  target_name: string;
-  params: JobParams;
-}
-
-const job: FunctionJobRequest = { ... };
-await jobScheduling().JOB.submitJob(job as unknown as SdkJobMeta);
-```
-
-`job.ts` is the worked example. The cast is the seam: it is the one place the SDK's
-declared type and the shape Catalyst actually accepts are allowed to disagree.
-
-## Known rough edges in the modular SDK
-
-- `createCron` takes `ICatalystCronDetails`, its *response* shape, so its declared input
-  demands `id`, `end_time`, `cron_execution_type` and an expanded `job_meta` that only the
-  server produces. No valid request satisfies it.
-- `submitJob` is declared against `TCatalystJobs`, whose `target_type` is a TS enum member
-  - and a string literal is never assignable to one, so even a correct payload is
-  rejected. Both are why `job.ts` casts at the call.
-- `@zcatalyst/zcql` is at **0.0.2** while the rest are 1.0.0. It is the least settled
-  dependency here; expect its API to move. `zcql.ts` goes through `Datastore` instead.
-- `getSegmentDetails(id)` and `segment(id)` take a segment **id**, not a name.
+How a wrapper in `packages/catalyst-node` is written - what it takes and returns, its errors,
+and how it types an SDK that exports almost nothing - is `catalyst-wrappers.md`.

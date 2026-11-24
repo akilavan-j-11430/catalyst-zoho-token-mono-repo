@@ -119,17 +119,18 @@ The SDK reads five keys of its own when it loads: `X_ZOHO_CATALYST_IS_LOCAL`,
 `X_ZOHO_CATALYST_ACCOUNTS_URL`, `X_ZOHO_CATALYST_CONSOLE_URL`, `CATALYST_PORTAL_DOMAIN` and
 `X_ZOHO_STRATUS_RESOURCE_SUFFIX`.
 
-- **Not on a template.** No app code reads them, so they are not keys on `src/env.ts`; they
-  go in the app's `.env.example`, with a comment, like any other key.
+- **Not on a template, and not in any `.env`.** No app code reads them, and locally no app
+  sets them itself.
 - **Their values come from `catalyst serve`**, which works them out from the project and data
   centre you signed in to and sets them for the one AppSail it runs, the proxy. The proxy
-  prints them at startup, ready to paste; README "3. Fill in the environment" says how.
-- **Anything turbo starts gets none** - the web app, an AppSail's or a function's dev
-  server - so its `.env.example` lists all five and its `.env` holds the pasted values, all
-  five even for the US: with `IS_LOCAL=true` the Stratus SDK reads `CATALYST_PORTAL_DOMAIN`
-  with no US default.
-- **Deployed, `IS_LOCAL` is never set.** The other four are set in the Console, until the
-  first Slate deploy shows whether Slate sets them itself.
+  serves them as JSON at `/__common/env`.
+- **`pnpm dev` hands them to everything turbo starts.** `scripts/dev.mjs` starts
+  `catalyst serve`, asks each port from 3000 to 3100 for that path until the proxy answers,
+  then starts `turbo run dev` with the keys in its environment, and `globalPassThroughEnv`
+  passes them to every task - the web app, an AppSail's or a function's dev server. A dev
+  server started any other way has none of them.
+- **Deployed, `IS_LOCAL` is never set.** The other four are set in the Console, read from
+  that path, until the first Slate deploy shows whether Slate sets them itself.
 
 ## `apps/web` reads its keys on the server
 

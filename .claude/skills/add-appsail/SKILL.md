@@ -29,8 +29,7 @@ description: Add a new Catalyst AppSail to this repo - an Express app with its w
      of `apps/proxy/scripts/bundle.mjs`, with `outDir` set to `appsails/<name>`.
    - `src/env.ts`, `turbo.json` (`dev` `passThroughEnv`) and `.env.example` for its own
      keys, in the four steps `environment.md` lists. Two AppSails never share a key list.
-   - Its `.env.example` also carries the Catalyst SDK's five keys, copied from
-     `apps/web/.env.example`: turbo runs its `dev` script, not `catalyst serve`
+   - Not the Catalyst SDK's five keys: `pnpm dev` hands them to every task turbo starts
      (`environment.md`, "The keys the Catalyst SDK reads").
 4. **Outside the workspace:**
    - `catalyst.json`: add `{ "source": "appsails/<name>", "name": "<name>" }` under

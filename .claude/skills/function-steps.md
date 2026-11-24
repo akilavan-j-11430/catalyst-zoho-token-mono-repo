@@ -48,9 +48,9 @@ for Basic I/O and Advanced I/O - and every entry point follows
 **Running it locally:** every kind has a `src/dev-server.ts`, which `pnpm dev` starts on a
 port from 8100 up through the `dev` script
 (`tsx watch --env-file-if-exists=.env src/dev-server.ts`). Turbo starts it, not
-`catalyst serve`, so it gets none of the Catalyst SDK's own keys: copy their block from
-`apps/web/.env.example` into the function's own `.env.example` (`environment.md`, "The keys
-the Catalyst SDK reads"). The proxy routes the function's prefix to that port, so a local call goes through the URL
+`catalyst serve`, and `pnpm dev` hands turbo the Catalyst SDK's own keys, so its
+`.env.example` leaves them out (`environment.md`, "The keys the Catalyst SDK reads"). The
+proxy routes the function's prefix to that port, so a local call goes through the URL
 `pnpm dev` prints and carries the headers `catalyst serve` injects. Do not run functions
 with `catalyst functions:execute` or `catalyst serve --only functions` - the dev server is
 the local loop. It never reaches the bundle: nothing imports it from `src/index.ts`.

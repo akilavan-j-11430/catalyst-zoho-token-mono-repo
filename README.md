@@ -173,37 +173,22 @@ Then fill `apps/web/.env` in:
   `http://localhost:3001/zoho-token/callback` - and add the Slate domain's the same way
   before deploying. The app builds the redirect uri from the request's origin, so no key
   names it.
-- **The five Catalyst SDK keys** - take them from `catalyst serve`, which works them out from
-  the project and data centre you signed in to. Run `pnpm serve` once; when the proxy starts
-  it prints them, ready to paste:
 
-  ```
-  [proxy] Catalyst SDK keys for apps/web/.env:
-  X_ZOHO_CATALYST_IS_LOCAL=true
-  X_ZOHO_CATALYST_ACCOUNTS_URL=https://accounts.zoho.com
-  X_ZOHO_CATALYST_CONSOLE_URL=https://api.catalyst.zoho.com
-  CATALYST_PORTAL_DOMAIN=https://accounts.zohoportal.com
-  X_ZOHO_STRATUS_RESOURCE_SUFFIX=.zohostratus.com
-  ```
+The Catalyst SDK also reads five keys of its own - `X_ZOHO_CATALYST_IS_LOCAL`,
+`X_ZOHO_CATALYST_ACCOUNTS_URL`, `X_ZOHO_CATALYST_CONSOLE_URL`, `CATALYST_PORTAL_DOMAIN` and
+`X_ZOHO_STRATUS_RESOURCE_SUFFIX`. You do not set them locally: `catalyst serve` works them out
+from the project and data centre you signed in to and sets them for the proxy, and `pnpm dev`
+asks the proxy for them and hands them to every app it starts.
 
-  Replace the five empty lines in `apps/web/.env` with those five, then stop it. Paste all
-  five even for a US project: with `IS_LOCAL=true` the Stratus SDK reads
-  `CATALYST_PORTAL_DOMAIN` with no US default. Paste them again only if you bind the repo to
-  a project in another data centre.
-
-Why the web app needs them and the proxy does not: `catalyst serve` sets them for the proxy,
-the one AppSail it runs, but turbo starts the web app, so it only has what Next loads from
-`apps/web/.env`.
-
-On Slate, set `TZ`, the four Zoho keys and the four data-centre keys - every key above except
+On Slate, set `TZ`, the four Zoho keys and four of those SDK keys - all but
 `X_ZOHO_CATALYST_IS_LOCAL`, which is never set when deployed - in **Console -> Slate -> web ->
-Environment Variables**. Whether Slate sets the data-centre keys itself is checked on the
-first deploy (below).
+Environment Variables**. While `pnpm dev` runs, read the SDK values with
+`curl http://localhost:3001/__common/env`, using the port it printed. Whether Slate sets the
+data-centre keys itself is checked on the first deploy (below).
 
 A function, an AppSail or a second app gets its own `.env.example` from the skill that adds
-it, with the same five keys, since turbo starts its dev server too. Never put a value in
-`app-config.json` or any other Catalyst file - those are committed, and `.env` is not.
-`.claude/rules/general/environment.md` is the full rule.
+it. Never put a value in `app-config.json` or any other Catalyst file - those are committed,
+and `.env` is not. `.claude/rules/general/environment.md` is the full rule.
 
 **4. Start everything**
 
@@ -216,19 +201,18 @@ it, and starts the web app and the shared-package watchers. You should see somet
 close to:
 
 ```
+[dev] Catalyst serve is ready - open http://localhost:3001     <- open this one
+...
 web:dev:   - Local:   http://localhost:4000
-
- >>>>>>>>>>>>>> AppSail <<<<<<<<<<<<<<
- proxy: http://localhost:3001          <- open this one
- [proxy] http://localhost:4600
 ```
 
-Two ports appear for the proxy and that is expected: `4600` is the port the CLI
-injected into the proxy process, and `3001` is where the CLI fronts it for you.
+`catalyst serve` itself prints nothing here - `pnpm dev` drops its output. If it stops
+before it is ready, `pnpm dev` says so; run `pnpm spawn:proxy` on its own to see the CLI's
+own messages.
 
-**5. Open the URL the CLI printed**
+**5. Open the URL `pnpm dev` printed**
 
-Look for the `proxy:` line in the output - typically `http://localhost:3001`. Not
+Look for the `[dev] Catalyst serve is ready` line - typically `http://localhost:3001`. Not
 `:4000`, and not necessarily `:3000`. That entry point is the only address that carries
 the Catalyst headers. Sign in, and the home page reads your account from Catalyst on the
 server. That proves the whole chain: `catalyst serve` supplied the project headers, and the
@@ -289,8 +273,8 @@ All run from the repo root.
 
 | Command | Expands to | When you want it |
 |---|---|---|
-| `pnpm dev` | `concurrently ... "pnpm run serve < /dev/null" "turbo run dev"` | Day-to-day. Everything at once. Open the URL it prints. |
-| `pnpm serve` | `turbo run bundle --filter=proxy && catalyst serve --only appsail:proxy` | The entry point alone, against your own already-running web app. |
+| `pnpm dev` | `node scripts/dev.mjs` - `pnpm run spawn:proxy`, then `turbo run dev` with the Catalyst SDK keys the proxy serves | Day-to-day. Everything at once. Open the URL it prints. |
+| `pnpm spawn:proxy` | `turbo run bundle --filter=proxy && catalyst serve --only appsail:proxy` | The entry point alone, against your own already-running web app. |
 | `pnpm build` | `turbo build` | Compile everything - `src/` only; tests are type-checked by `pnpm typecheck`. `tsc --build tsconfig.build.json && tsc-alias -p tsconfig.build.json` in packages, `next build` in web. |
 | `pnpm bundle` | `turbo run bundle` | Produce the proxy's AppSail output in `appsails/` and the staged Slate app in `slate/web/`. Runs `build` first. |
 | `pnpm lint` | `turbo lint` | ESLint in every workspace with code - test files included. |
@@ -360,8 +344,8 @@ component only. In the cloud the web app reads and writes on its own server.
 **The web app's keys** - `TZ`, the four Zoho keys and the four data-centre keys from step 3 - are
 set in **Console -> Slate -> web -> Environment Variables**, once per environment. The server
 reads them at request time. Sign-up needs no redirect key: the Server Action sends new users
-to the origin the request came from. `apps/web/.env.example` documents each one, and a local
-`apps/web/.env` never reaches Slate, because the bundle leaves it out.
+to the origin the request came from. Step 3 documents each one, and a local `apps/web/.env`
+never reaches Slate, because the bundle leaves it out.
 
 **Environment variables are not carried by the deploy.** No Catalyst file declares one, on
 purpose - those files are committed, so a value there is a value in git. Set what a deployed
@@ -496,13 +480,13 @@ signed-in user and `zcAuth.init` throws `app/invalid_project_details`. The web s
 shows the real error. Use the CLI's printed URL, not `:4000` or a hand-started proxy.
 
 **You cannot find the app on port 3000** - the CLI takes the first free port from 3000
-upward, so it is often 3001 or 3002. Read the `proxy:` line in the `pnpm dev` output.
+upward, so it is often 3001 or 3002. Read the `[dev] Catalyst serve is ready` line in the `pnpm dev` output.
 
 **`Port 4000 is already in use`** - a previous run is still up.
 `lsof -ti:4000 | xargs kill` and retry.
 
 **`catalyst serve` starts but the page is blank or 502** - the proxy is running but the
-web app is not. `pnpm dev` starts both; if you ran `pnpm serve` alone, the web app is not
+web app is not. `pnpm dev` starts both; if you ran `pnpm spawn:proxy` alone, the web app is not
 up.
 
 **`catalyst serve` cannot find the app** - `appsails/proxy/` does not exist yet. Run

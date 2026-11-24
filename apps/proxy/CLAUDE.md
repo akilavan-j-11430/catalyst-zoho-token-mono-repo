@@ -15,8 +15,9 @@ the entry point, not 3000.
 
 ## Routing
 
-`src/index.ts` registers one `http-proxy-middleware` instance, `webProxy`, which sends every
-path to `http://localhost:4000` - `apps/web` (Next.js). It sets `changeOrigin: true` and
+`src/index.ts` answers `/__common/env` itself (below), then
+registers one `http-proxy-middleware` instance, `webProxy`, which sends every other path to
+`http://localhost:4000` - `apps/web` (Next.js). It sets `changeOrigin: true` and
 `ws: true` for HMR, and the `server.on("upgrade")` handler hands every WebSocket upgrade to
 it. There is no path rewriting.
 
@@ -40,19 +41,23 @@ From the repo root:
 
 ```bash
 pnpm dev      # everything: this proxy via catalyst serve, plus web and the package watchers
-pnpm serve    # this proxy alone
+pnpm spawn:proxy    # this proxy alone
 ```
 
-`pnpm dev` runs `catalyst serve` with **stdin redirected from `/dev/null`**. When its
-stdin is not a terminal, the CLI waits for EOF before starting the AppSail - and a
+`pnpm dev` (`scripts/dev.mjs`) runs `catalyst serve` with **stdin from `/dev/null`**. When
+its stdin is not a terminal, the CLI waits for EOF before starting the AppSail - and a
 process manager's pipe never sends one, so it hangs. The front port still binds, so
-every request 502s and it looks like a proxy fault. Do not drop that redirect.
-Running `pnpm serve` yourself is unaffected: a terminal takes the interactive path.
+every request 502s and it looks like a proxy fault. Running `pnpm spawn:proxy` yourself is
+unaffected: a terminal takes the interactive path.
 
-At startup it prints the five keys the Catalyst SDK reads, which `catalyst serve` set for it
-from the project you signed in to, ready to paste into `apps/web/.env` - README "3. Fill in
-the environment". They are URLs and a suffix, never a credential; print nothing else from
-the environment.
+`pnpm dev` also drops the CLI's output, this proxy's `[proxy]` line included, and prints only
+its own `[dev]` lines. Run `pnpm spawn:proxy` alone to see what the CLI says.
+
+It serves the five keys the Catalyst SDK reads, which `catalyst serve` set for it from the
+project you signed in to, as JSON at `/__common/env`.
+`scripts/dev.mjs` asks for them through the front port and starts the apps with them, so
+keep its copy of the path in step. They are URLs and a suffix, never a credential; serve or
+log nothing else from the environment.
 
 Because it serves the bundle, **edits to `src/` require a re-bundle** to take effect.
 

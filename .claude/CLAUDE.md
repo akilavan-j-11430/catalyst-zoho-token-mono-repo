@@ -141,23 +141,25 @@ takes one of two startup paths:
   terminal never sends EOF. This is why typing `catalyst serve` yourself always works.
 - stdin is not a terminal - it waits for stdin to reach EOF before starting the AppSail.
 
-Turbo and concurrently hand their children a pipe that is open, silent, and never
-closed: not a terminal, and no EOF. So it waits forever. Verified against all five
-stdin shapes - terminal, /dev/null, closed, pipe-that-ends, pipe-held-open - and only
-the last one hangs.
+Process managers like turbo and concurrently hand their children a pipe that is open,
+silent, and never closed: not a terminal, and no EOF. So it waits forever. Verified against
+all five stdin shapes - terminal, /dev/null, closed, pipe-that-ends, pipe-held-open - and
+only the last one hangs.
 
 The symptom is nasty: the front port binds *before* this step, nothing is logged, and
 every request 502s, so it reads as a proxy bug rather than a hung process.
 
-Redirecting from `/dev/null` supplies the EOF it is waiting for. That is the whole
-reason the root `dev` script reads:
+`/dev/null` supplies the EOF it is waiting for. That is why the root `dev` script,
+`scripts/dev.mjs`, starts `pnpm run spawn:proxy` with stdin `"ignore"` - Node's `/dev/null` -
+and why it never runs `catalyst serve` under turbo. Do not change that. The `spawn:proxy`
+script itself takes stdin as given, so running `pnpm spawn:proxy` on its own in a terminal
+keeps working stdin.
 
-```
-concurrently -k -n serve,apps "pnpm run serve < /dev/null" "turbo run dev"
-```
-
-Do not remove that `< /dev/null`. The `serve` script itself deliberately omits it, so
-running `pnpm serve` on its own in a terminal keeps working stdin.
+`scripts/dev.mjs` then asks the proxy for the Catalyst SDK's keys at
+`/__common/env`, scanning ports 3000-3100 for `catalyst serve`'s front port, and
+starts `turbo run dev` only once it answers, with those keys in its environment - so the web
+app gets them from the CLI and no `.env` carries them
+(`.claude/rules/general/environment.md`).
 
 **Always go through `catalyst serve`.** It injects the Catalyst project headers that
 `zcAuth.init(req)` parses. Hit the proxy, the web app on `:4000` or any app behind the
@@ -165,9 +167,10 @@ proxy directly and every Catalyst read fails with `app/invalid_project_details`.
 static parts still render, which makes it look like an app bug.
 
 **The entry port is not 3000.** `catalyst serve` takes the first free port from 3000
-upward, so it is usually 3001. Read the URL it prints. The proxy process itself listens
-on whatever the CLI injects as `X_ZOHO_CATALYST_LISTEN_PORT` (4600 in practice); the
-3000 in `apps/proxy/src/index.ts` is only a standalone fallback.
+upward, so it is usually 3001. `pnpm dev` prints it on its `[dev] Catalyst serve is ready`
+line. The proxy process itself listens on whatever the CLI injects as
+`X_ZOHO_CATALYST_LISTEN_PORT` (4600 in practice); the 3000 in `apps/proxy/src/index.ts` is
+only a standalone fallback.
 
 ## Toolchain constraint
 

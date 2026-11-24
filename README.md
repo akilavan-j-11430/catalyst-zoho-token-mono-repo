@@ -171,11 +171,11 @@ The Catalyst SDK also reads five keys of its own - `X_ZOHO_CATALYST_IS_LOCAL`,
 from the project and data centre you signed in to and sets them for the proxy, and `pnpm dev`
 asks the proxy for them and hands them to every app it starts.
 
-On Slate, set `TZ`, the four Zoho keys and four of those SDK keys - all but
-`X_ZOHO_CATALYST_IS_LOCAL`, which is never set when deployed - in **Console -> Slate -> web ->
-Environment Variables**. While `pnpm dev` runs, read the SDK values with
-`curl http://localhost:3001/__common/env`, using the port it printed. Whether Slate sets the
-data-centre keys itself is checked on the first deploy (below).
+They are local only - never set them in the Console. While `pnpm dev` runs, read the values
+with `curl http://localhost:3001/__common/env`, using the port it printed.
+
+On Slate, set `TZ` and the four Zoho keys in **Console -> Slate -> web -> Environment
+Variables**.
 
 A function, an AppSail or a second app gets its own `.env.example` from the skill that adds
 it. Never put a value in `app-config.json` or any other Catalyst file - those are committed,
@@ -332,7 +332,7 @@ this script. It is `turbo run bundle && catalyst deploy --only slate:web`:
 **The proxy is not in that list, and must not be.** It is a local-development
 component only. In the cloud the web app reads and writes on its own server.
 
-**The web app's keys** - `TZ`, the four Zoho keys and the four data-centre keys from step 3 - are
+**The web app's keys** - `TZ` and the four Zoho keys from step 3 - are
 set in **Console -> Slate -> web -> Environment Variables**, once per environment. The server
 reads them at request time. Sign-up needs no redirect key: the Server Action sends new users
 to the origin the request came from. Step 3 documents each one, and a local `apps/web/.env`

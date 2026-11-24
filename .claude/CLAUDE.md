@@ -376,8 +376,8 @@ exception to all of this - see `.claude/rules/general/testing.md`.
 
 - `zcAuth.init(req)` (`@zcatalyst/auth`) is **per request**. Project details and caller
   credentials ride on request headers, so neither belongs in the environment. The SDK's own
-  data-centre keys do, in each app's `.env` - `environment.md`, "The keys the Catalyst SDK
-  reads".
+  data-centre keys come from `catalyst serve` and are local only - never in a `.env` or the
+  Console (`environment.md`, "The keys the Catalyst SDK reads").
 - `catalyst_auth: true` in `apps/proxy/app-config.json` gates no page. It has
   `catalyst serve` pass Catalyst's sign-in paths (`/accounts`, `/oauthorize`) through to
   Catalyst, which the sign-in widget and sign-out need locally - do not remove it. Who sees

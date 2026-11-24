@@ -129,8 +129,8 @@ The SDK reads five keys of its own when it loads: `X_ZOHO_CATALYST_IS_LOCAL`,
   then starts `turbo run dev` with the keys in its environment, and `globalPassThroughEnv`
   passes them to every task - the web app, an AppSail's or a function's dev server. A dev
   server started any other way has none of them.
-- **Deployed, `IS_LOCAL` is never set.** The other four are set in the Console, read from
-  that path, until the first Slate deploy shows whether Slate sets them itself.
+- **Local only.** They exist for local development. None is set in the Console, for Slate,
+  an AppSail or a function.
 
 ## `apps/web` reads its keys on the server
 

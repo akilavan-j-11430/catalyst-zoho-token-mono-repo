@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ExecutionContext, runWithContext } from "@repo/async-context/async-context";
 import type { UserManagement } from "@repo/catalyst-node/user-management";
-import type { zohoConnectionCache } from "@repo/repositories/resources";
+import type { zohoConnectionCache } from "@repo/catalyst-node/resources";
 import type { ZohoConnectionRepository } from "@repo/repositories/zoho-connection-repository";
 import type { ZohoAccounts } from "@/zoho-accounts";
 import {
@@ -42,7 +42,7 @@ const { repository, cache, accounts, currentUser } = vi.hoisted(() => ({
 vi.mock("@repo/repositories/zoho-connection-repository", () => ({
   ZohoConnectionRepository: repository,
 }));
-vi.mock("@repo/repositories/resources", () => ({ zohoConnectionCache: cache }));
+vi.mock("@repo/catalyst-node/resources", () => ({ zohoConnectionCache: cache }));
 vi.mock("@/zoho-accounts", () => ({ ZohoAccounts: accounts }));
 vi.mock("@repo/catalyst-node/user-management", () => ({ UserManagement: { currentUser } }));
 

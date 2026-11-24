@@ -54,13 +54,14 @@ Where new work goes:
   `.claude/rules/node-api/express-app.md`.
 - Catalyst SDK calls -> `packages/catalyst-node`, the one package allowed `@zcatalyst/*`.
   Each entry point sets the apps it needs on its execution context with
-  `CatalystSession.setApp`, and every wrapper reads them from there. It wraps the SDK for
-  any solution, so it holds no table, bucket or job of this one.
+  `CatalystSession.setApp`, and every wrapper reads them from there. Every Catalyst resource
+  handle - table, bucket, cache segment, job - goes in its `src/resources.ts`, which arrives
+  with the first one.
 - This app's records -> a repository in `packages/repositories` (`@repo/repositories`),
-  whether they sit in a Data Store table or in a CRM; every Catalyst resource handle goes in
-  its `resources.ts`. An outside service asked to *do* something - create a lead, send an
-  email - is a client in its own `packages/<service>`, as `packages/zoho-token` is for the
-  Zoho accounts server; `.claude/rules/general/repositories.md` has the rule.
+  whether they sit in a Data Store table or in a CRM. An outside service asked to *do*
+  something - create a lead, send an email - is a client in its own `packages/<service>`, as
+  `packages/zoho-token` is for the Zoho accounts server; `.claude/rules/general/repositories.md`
+  has the rule.
 - Logging -> `packages/logger` (`Logger.for("<source>")`); the request's execution
   context -> `packages/async-context`. Both rest on `node:async_hooks`, so they are server
   only - in `apps/web` only server code (a page, a Server Action, a route handler) reaches
@@ -267,7 +268,7 @@ frontmatter when it applies to only part of the tree.
 - Shared packages expose subpaths, not a barrel: `@repo/types/user`,
   `@repo/case-conversion/camel-case`,
   `@repo/logger/logger`, `@repo/async-context/async-context`,
-  `@repo/repositories/resources`, `@repo/zoho-token/zoho-connection`, `@repo/env/define-env`,
+  `@repo/catalyst-node/resources`, `@repo/zoho-token/zoho-connection`, `@repo/env/define-env`,
   `@repo/http-client/http-client`,
   `@repo/input-validation/input-validation`,
   `@repo/testing/vitest-projects`.
@@ -322,7 +323,7 @@ the app is built, and `.claude/rules/general/routing.md` how its paths are named
 mounted. A `route.ts` in `apps/web` serves only the web app's own browser
 (`.claude/rules/nextjs/code-placement.md`).
 
-**A table** - declare its handle in `packages/repositories/src/resources.ts`, its
+**A table** - declare its handle in `packages/catalyst-node/src/resources.ts`, its
 domain type in `packages/types`, and a repository in
 `packages/repositories/src/<name>-repository.ts` that is the only importer of the
 handle and maps rows to the domain type. Callers - a page, an action, a route - call the

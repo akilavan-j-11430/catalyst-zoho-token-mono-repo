@@ -5,12 +5,12 @@ the business - `TodoRepository.find(todoId)`, `ContactRepository.listByOwner(own
 the records live is its own detail: a Data Store table today, Postgres or a CRM tomorrow.
 
 Repositories live in their own package, `@repo/repositories` (`packages/repositories/src/`),
-one class per aggregate, `<name>-repository.ts`. Not in `catalyst-node`: that package wraps the
-SDK and would serve any Catalyst solution, while repositories are this solution's data model
-and change with the product. The package also holds `resources.ts`, every Catalyst resource
-handle this app declares (`catalyst-sdk.md`), since those are this solution's too. It depends
-on `@repo/catalyst-node` and calls its wrappers, never `@zcatalyst/*`, and the web app, every
-AppSail and every function import it, so none writes its own queries.
+one class per aggregate, `<name>-repository.ts`. Not in `catalyst-node`: that package is what
+this repo asks of Catalyst, while a repository is this solution's data model and outlives the
+store behind it - a table moved to Postgres or a CRM rewrites its repository and leaves
+`catalyst-node` alone. It depends on `@repo/catalyst-node`, takes its table handles from that
+package's `resources.ts` (`catalyst-sdk.md`) and calls its wrappers, never `@zcatalyst/*`. The
+web app, every AppSail and every function import it, so none writes its own queries.
 `ZohoConnectionRepository` is the one repository so far.
 
 Nothing else touches a table handle or `Zcql` - not a route, an area, a page or a job. ZCQL, column names and `ROWID`
@@ -23,7 +23,7 @@ Postgres then rewrites the repository and leaves every caller alone:
 import { CatalystScope } from "@repo/catalyst-node/catalyst-scope";
 import type { StoredRow } from "@repo/catalyst-node/table";
 import type { Todo } from "@repo/types/todo";
-import { todoTable, type TodoRow } from "@/resources";
+import { todoTable, type TodoRow } from "@repo/catalyst-node/resources";
 
 /** Repository: every Data Store read and write of todos, and the only code naming their columns. */
 export class TodoRepository {
@@ -70,7 +70,7 @@ reading anyone's record - is Admin. The caller never passes a scope in.
 An area calls a repository; a page, an action or a route calls one directly only while there
 is no area in between (`nextjs/code-placement.md`, `node-api/code-placement.md`). Bucket,
 cache and job handles need no repository - whatever needs one calls its wrapper directly -
-but their handles live in `@repo/repositories`'s `resources.ts` too.
+importing the handle from `@repo/catalyst-node/resources`.
 
 ## An outside service: a repository or a client
 

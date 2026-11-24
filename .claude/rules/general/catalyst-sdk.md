@@ -4,8 +4,8 @@ Every Catalyst SDK call goes through `packages/catalyst-node/src/`. No
 `@zcatalyst/*` package may be imported anywhere else, and ESLint enforces it.
 
 One file per component - `bucket.ts`, `table.ts`, `zcql.ts`, `cache.ts`, `job.ts` - plus
-`catalyst-session.ts`, which sets the apps. The resources this app uses are named in
-`@repo/repositories`'s `resources.ts`, below, since they belong to the solution, not the SDK.
+`catalyst-session.ts`, which sets the apps, and `resources.ts`, which names the resources this
+app uses (below).
 Each component builds the SDK client it needs itself, in a module-private accessor at the
 top of the file, from the app the entry point set for the request in flight, and reaches
 for an app nowhere else:
@@ -27,15 +27,15 @@ Catalyst, and a boundary ESLint can name.
 ## Reaching a resource
 
 A wrapper instance is a **handle**: it holds a name and nothing else. Build it once, at
-module scope, in `resources.ts` in `@repo/repositories` - one `export const` per Catalyst
+module scope, in `packages/catalyst-node/src/resources.ts` - one `export const` per Catalyst
 resource this repo uses, and the only place a wrapper is ever constructed:
 
 ```ts
-// packages/repositories/src/resources.ts
-import { Bucket } from "@repo/catalyst-node/bucket";
-import { Cache } from "@repo/catalyst-node/cache";
-import { Job } from "@repo/catalyst-node/job";
-import { Table } from "@repo/catalyst-node/table";
+// packages/catalyst-node/src/resources.ts
+import { Bucket } from "@/bucket";
+import { Cache } from "@/cache";
+import { Job } from "@/job";
+import { Table } from "@/table";
 
 /** A row of the Todo table, keyed by its Catalyst column names. */
 export interface TodoRow {
@@ -62,15 +62,14 @@ bucket, cache or job handle may be imported wherever it is needed:
 ```ts
 // packages/repositories/src/todo-repository.ts
 import { CatalystScope } from "@repo/catalyst-node/catalyst-scope";
-import { todoTable } from "@/resources";
+import { todoTable } from "@repo/catalyst-node/resources";
 
 const storedTodo = await todoTable.runIn(CatalystScope.User).getRow(todoId);
 ```
 
 It lives in a package rather than in an app because the web app is one deployable among
 however many a solution grows, and two of them reaching the same table must not name it
-twice. It is not in `catalyst-node` because the handles name this solution's resources, and
-that package wraps the SDK for any solution (`repositories.md`).
+twice.
 
 The four factories differ, because the resources do:
 
@@ -198,9 +197,9 @@ await Zcql.runIn(CatalystScope.User).executeQuery(
 - The error from a failed query never carries the statement, since it holds the values.
 
 `resources.ts` declares two: `zohoConnectionTable` for the `ZohoConnection` table, imported
-only by `zoho-connection-repository.ts`, and `zohoConnectionCache` for the project's default
-cache segment, which holds minted Zoho access tokens. The OAuth consent state is signed, not
-stored, so it costs no cache call.
+only by `zoho-connection-repository.ts` in `@repo/repositories`, and `zohoConnectionCache` for
+the project's default cache segment, which holds minted Zoho access tokens. The OAuth consent
+state is signed, not stored, so it costs no cache call.
 
 ## A handle is hoisted, a client is not
 

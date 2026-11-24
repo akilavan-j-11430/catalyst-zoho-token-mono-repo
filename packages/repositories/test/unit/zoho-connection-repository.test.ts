@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CatalystScope } from "@repo/catalyst-node/catalyst-scope";
 import type { ScopedTable } from "@repo/catalyst-node/table";
 import { Zcql, type ScopedZcql, type ZcqlRow, type ZcqlValue } from "@repo/catalyst-node/zcql";
-import { zohoConnectionTable, type ZohoConnectionRow } from "@/resources";
+import { zohoConnectionTable, type ZohoConnectionRow } from "@repo/catalyst-node/resources";
 import { ZohoConnectionRepository } from "@/zoho-connection-repository";
 
 // The wrappers are spied on rather than the SDK, so each test sees the scope a method

@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { currentContext } from "@repo/async-context/async-context";
 import { UserManagement } from "@repo/catalyst-node/user-management";
-import { zohoConnectionCache } from "@repo/repositories/resources";
+import { zohoConnectionCache } from "@repo/catalyst-node/resources";
 import { ZohoConnectionRepository } from "@repo/repositories/zoho-connection-repository";
 import { LruCache } from "@/lru-cache";
 import { PLimitPerKey } from "@/p-limit-per-key";

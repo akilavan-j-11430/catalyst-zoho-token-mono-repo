@@ -466,8 +466,8 @@ Short version; `CLAUDE.md` has the full list.
   the source and, inside a request, the execution ID and per-request ordering.
 - **Catalyst SDK.** `zcAuth.init(req)` happens once per request, at the entry point -
   `withCatalystPage` / `withCatalystFn` in the web app. Code below it reads a table through
-  its repository in `@repo/repositories`, takes a bucket, cache or job handle from that
-  package's `resources.ts`, and never initializes its own app.
+  its repository in `@repo/repositories`, takes a bucket, cache or job handle from
+  `@repo/catalyst-node/resources`, and never initializes its own app.
 - **Ports** come from `X_ZOHO_CATALYST_LISTEN_PORT` with a local fallback. Never
   hardcode.
 - **Underscore-prefixed params** (`_req`, `_next`) mark arguments a signature requires

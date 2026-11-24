@@ -7,12 +7,12 @@ Shared code for the monorepo. All thirteen are private and consumed as `"workspa
 | `@repo/case-conversion` | `CamelCase` - renames a vendor's snake_case/kebab-case keys, for `catalyst-node`; framework-free, so `apps/web` may use it too |
 | `@repo/types` | Shapes two workspaces use - `user` for the user shapes, `http` for the HTTP response `HttpClient` returns |
 | `@repo/http-client` | `HttpClient` - every call to a service outside this repo. Framework-free and browser-safe: it reads nothing ambient, and the caller passes in what a call carries |
-| `@repo/catalyst-node` | `CatalystSession` and the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user-management`) - every Catalyst SDK call, on the server. It names no resource of this solution; the handles live in `@repo/repositories` |
+| `@repo/catalyst-node` | `CatalystSession` and the Catalyst wrappers (`table`, `bucket`, `cache`, `job`, `zcql`, `user-management`) - every Catalyst SDK call, on the server - and `resources.ts`, every Catalyst resource handle (`zohoConnectionTable`, `zohoConnectionCache`) |
 | `@repo/env` | `defineEnv` - reads one app's declared environment variables; throws `MissingEnvVariableError` for an unset one |
 | `@repo/async-context` | `ExecutionContext`, `currentContext`, `runWithContext` and `AsyncContextError` - the execution id and extras of the request in flight. Node only |
 | `@repo/logger` | `Logger` on pino - `Logger.for(source)`, one block per line stamped with the request's execution id and order. Node only, since it reads `@repo/async-context` |
 | `@repo/input-validation` | `InputValidation.parse(schema, input)` - checks input from outside the app against a zod schema and throws `InvalidInputError` naming the field. Knows nothing about HTTP; framework-free, so the browser may use it too |
-| `@repo/repositories` | This solution's records: `resources.ts`, every Catalyst resource handle (`zohoConnectionTable`, `zohoConnectionCache`), and one repository per aggregate (`ZohoConnectionRepository`). Node only |
+| `@repo/repositories` | This solution's records: one repository per aggregate (`ZohoConnectionRepository`), taking its table handle from `@repo/catalyst-node/resources`. Node only |
 | `@repo/zoho-token` | `ZohoConnection` - each user's Zoho grant and the access tokens minted from it - `ZohoAccounts`, the one seam to the Zoho accounts server, `ZohoAuthError`, and the `LruCache`, `PLimit` and `PLimitPerKey` they rest on. Node only - see `.claude/rules/general/zoho-token.md` |
 | `@repo/typescript-config` | `base.json` that every tsconfig extends |
 | `@repo/eslint-config` | flat ESLint config: the import boundaries and the camelCase naming rule |
@@ -28,7 +28,7 @@ path under `src/`:
 import type { NewUser } from "@repo/types/user";                   // src/user.ts
 import { Logger } from "@repo/logger/logger";                      // src/logger.ts
 import { currentContext } from "@repo/async-context/async-context";
-import { zohoConnectionCache } from "@repo/repositories/resources"; // src/resources.ts
+import { zohoConnectionCache } from "@repo/catalyst-node/resources"; // src/resources.ts
 import { defineEnv } from "@repo/env/define-env";                  // src/define-env.ts
 ```
 
@@ -58,12 +58,12 @@ Consumers must be built after these. Turborepo handles that via `dependsOn: ["^b
   package allowed `express` - see `.claude/rules/node-api/express-app.md`.
 - **`packages/catalyst-node` is the only package that may import a Catalyst
   SDK.** ESLint enforces it. See `.claude/rules/general/catalyst-sdk.md`.
-- **Catalyst resources are declared once, in `repositories/src/resources.ts`** - one
+- **Catalyst resources are declared once, in `catalyst-node/src/resources.ts`** - one
   `export const` per table, bucket, cache segment and job, built with the wrapper's
   `create` factory. A table's handle is imported only by its repository; a bucket, cache or
   job handle by whatever needs it. Nothing constructs a wrapper anywhere else.
-  It sits in this package rather than in an app, so two deployables cannot name the same
-  table twice, and rather than in `catalyst-node`, which wraps the SDK for any solution.
+  It sits in a package rather than in an app, so two deployables cannot name the same
+  table twice.
 - **A capability an app lacks becomes a method on the wrapper**, never an SDK call at the
   call site. `packages/catalyst-node/src/` is meant to be the whole list of what this repo asks of
   Catalyst, so anything used from a route has to be visible there.

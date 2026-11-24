@@ -1,5 +1,5 @@
-import { Cache } from "@repo/catalyst-node/cache";
-import { Table } from "@repo/catalyst-node/table";
+import { Cache } from "@/cache";
+import { Table } from "@/table";
 
 /** One Zoho grant per Catalyst user. */
 export interface ZohoConnectionRow {

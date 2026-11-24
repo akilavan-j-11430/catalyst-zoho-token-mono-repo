@@ -52,7 +52,7 @@ instead of finishing as a silent success.
 ```ts
 // src/job-dispatcher.ts
 import type { JobParams } from "@repo/catalyst-node/job";
-import { reminderJob } from "@repo/repositories/resources";
+import { reminderJob } from "@repo/catalyst-node/resources";
 import { Logger } from "@repo/logger/logger";
 import { ReminderJob } from "@/jobs/reminder";
 

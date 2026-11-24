@@ -1,6 +1,6 @@
 import { CatalystScope } from "@repo/catalyst-node/catalyst-scope";
 import { Zcql } from "@repo/catalyst-node/zcql";
-import { zohoConnectionTable } from "@/resources";
+import { zohoConnectionTable } from "@repo/catalyst-node/resources";
 
 /**
  * Repository: every Data Store read and write of Zoho grants, and the only code naming the
